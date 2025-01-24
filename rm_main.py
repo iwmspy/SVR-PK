@@ -7,7 +7,7 @@ pwd = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(pwd)
 
 parser = argparse.ArgumentParser(description='Retrosynthesize actual molecules...')
-parser.add_argument('-c', '--config', default=f'{pwd}/config/chembl_config.json', help='Configration')
+parser.add_argument('-c', '--config', default=f'{pwd}/config/chembl_config_lv1_augment.json', help='Configration')
 args = parser.parse_args()
 
 
