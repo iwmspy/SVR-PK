@@ -49,7 +49,7 @@ This procedure contains below modules.
 * <code>preprocess_for_retrosynthesis.py</code>: For preprocessing generated datasets
 * <code>modeling_retrosynthesis_ecfp_split.py</code>: For modeling from reactants
 
-Our results can be reprecated by this json file.
+Our results can be replicated by this json file.
 
 * <code>chembl_config_lv1.json</code>: Product-based splitting
 * <code>chembl_config_lv1_augment.json</code>: Product-based splitting with data augmentation
@@ -66,7 +66,7 @@ This script will run Thompson sampling used as a compared method.
 
 <p><code>python reactant_screening_TS.py -c [your_config_file].json</code></p>
 
-Our results can be reprecated by this json file.
+Our results can be replicated by this json file.
 
 * <code>chembl_config_for_screening_1k.json</code>: Reactant pair screening (sample 1k reactants for each, just for rate measurement)
 * <code>chembl_config_for_screening_10k.json</code>: Reactant pair screening (sample 10k reactants for each, just for rate measurement)
