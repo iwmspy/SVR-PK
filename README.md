@@ -61,6 +61,10 @@ Reactant screening procedure.
 
 <p><code>python reactant_screening.py -c [your_config_file].json</code></p>
 
+This script will run Thompson sampling used as a compared method. 
+
+<p><code>python reactant_screening_TS.py -c [your_config_file].json</code></p>
+
 Our results can be reprecated by this json file.
 
 * <code>chembl_config_for_screening_1k.json</code>: Reactant pair screening (sample 1k reactants for each, just for rate measurement)
