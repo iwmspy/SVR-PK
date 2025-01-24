@@ -42,25 +42,6 @@ def _mixturesortedlist(l):
         j -= 1
     return mixl
 
-
-def _CreateNetwork(df:pd.DataFrame, group_index_col:str, smiles_col, similarity_threshold):
-    from utils import oe_init
-    pwd = os.path.dirname(os.path.abspath(__file__))
-    pardir = os.path.abspath(os.path.join(pwd,'..','..'))
-    sys.path.append(os.path.join(pardir,'python_library'))
-    from chem.visualization import VisualizeCompoundSet
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        uni_smiles = df.drop_duplicates(subset=group_index_col)[[group_index_col, smiles_col]] \
-            if group_index_col is not None else pd.concat([df[[smiles_col]],pd.DataFrame(list(range(df.shape[0])),index=df.index,columns=['_index'])],axis=1)
-        if group_index_col is None:
-            group_index_col = '_index'
-        _ = VisualizeCompoundSet(uni_smiles, col_smi=smiles_col, fp_name='ECFP4', similarity_threshold=similarity_threshold,
-            outfd=tmpdir, outfile_network='cpds_network.gml',
-            outfile_excel='cpds_network.xlsx', allow_override=True, annotated_properties=[group_index_col])
-        graph  = nx.read_gml(os.path.join(tmpdir,'cpds_network.gml'))
-    return graph
-
 def CustomRandomSplit(df:pd.DataFrame, group_index_col:str, group_subgroup_col:str=None, test_size=0.4, n_iter=100):
     group_idx = sorted(list(set(df[group_index_col])))
 
@@ -137,22 +118,6 @@ def CustomDissimilarRandomSplit(df:pd.DataFrame, group_index_col:str, group_subg
             test_df        = pd.concat([test_df, test_dissim[test_dissim['is_unique']]])
             test_whole_df  = pd.concat([test_whole_df, test_whole_dissim[test_whole_dissim['is_unique']]])
     return train_df, train_whole_df, test_df, test_whole_df
-    
-
-def CustomSimilaritySplit(df:pd.DataFrame, group_index_col:str, smiles_col='smiles', similarity_threshold=0.8, ret_network=False):
-    graph = _CreateNetwork(df,group_index_col,smiles_col,similarity_threshold)
-    nx_inf = pd.DataFrame.from_dict(graph.nodes._nodes, orient='index')
-    tr, ts = nx_inf[nx_inf['representative']==1], nx_inf[nx_inf['representative']==0]
-    tr_idx = tr[group_index_col.replace('-', '').replace('_','')].to_list()
-    ts_idx = ts[group_index_col.replace('-', '').replace('_','')].to_list()
-    
-    train_test_index = {
-        'train' : tr_idx, 'test' : ts_idx
-    }
-
-    if ret_network:
-        return train_test_index, graph
-    return train_test_index
 
 def CustomFragmentSpaceSplitbyFreq(df:pd.DataFrame, group_index_col:str, rct_smiles_col='smiles', test_ratio=0.4, group_subgroup_col:str=None, tol=0.05, max_iter=1000, ret_network=False):
     assert(test_ratio>0 and test_ratio<1)
@@ -171,78 +136,6 @@ def CustomFragmentSpaceSplitbyFreq(df:pd.DataFrame, group_index_col:str, rct_smi
         fr2_mcn, _ = zip(*cls.Counter(frs_pair_T[1]).most_common())
         fr1_dict = {fr1 : i for i, fr1 in enumerate(_mixturesortedlist(fr1_mcn))}
         fr2_dict = {fr2 : i for i, fr2 in enumerate(fr2_mcn[::-1])}
-        frs_coor = np.zeros((len(frs_pair), 3))
-        for i, (gr, pair) in enumerate(zip(gr_indices,frs_pair)):
-            frs_coor[i, 0] = fr1_dict[pair[0]]
-            frs_coor[i, 1] = fr2_dict[pair[1]]
-            frs_coor[i, 2] = gr_dict[gr]
-        frs_max = np.max(frs_coor, axis=0)[:-1]
-        ts_ratio =test_ratio
-        best_ratio_diff = float('inf')
-        for i, _ in enumerate(range(max_iter)):
-            tr_ratio = 1 - ts_ratio
-            ratio_to_split = np.sqrt(tr_ratio) / (np.sqrt(tr_ratio) + np.sqrt(ts_ratio))
-            split_point = frs_max * ratio_to_split
-            train_indices = list()
-            gr_cache = set()
-            test_indices  = list()
-            for j, pair in enumerate(frs_coor):
-                if all(pair[:-1] <= split_point):
-                    train_indices.append(j)
-                    gr_cache.add(pair[-1])
-            for j, pair in enumerate(frs_coor):
-                if all(pair[:-1] > split_point) and (pair[-1] not in gr_cache):
-                    test_indices.append(j)
-            ratio_ts = len(test_indices) / (len(train_indices) + len(test_indices))
-            if (ratio_ts - test_ratio) < best_ratio_diff:
-                best_ratio = (tr_ratio, ts_ratio)
-                best_ratio_diff = (ratio_ts - test_ratio)
-                best_train_indices = deepcopy(train_indices)
-                best_test_indices  = deepcopy(test_indices)
-            if (ratio_ts - test_ratio) < tol: break
-            ts_ratio = ts_ratio - 0.01 if (ts_ratio - 0.01) > 0 else 0.99
-        if i==(max_iter-1): 
-            print('Max iter warning !')
-            tr_ratio, ts_ratio = best_ratio
-            ratio_to_split = np.sqrt(tr_ratio) / (np.sqrt(tr_ratio) + np.sqrt(test_ratio))
-            split_point = frs_max * ratio_to_split
-            train_indices = best_train_indices
-            test_indices  = best_test_indices
-        tr_df = subgroup.iloc[train_indices]
-        ts_df = subgroup.iloc[test_indices]
-        tr_wh_df = df[~df[group_index_col].isin(set(ts_df[group_index_col]))]
-        tr_wh_df['Rep_reaction'] = name
-        ts_wh_df = ts_df.copy()
-        ts_wh_df['Rep_reaction'] = name
-        train_df = pd.concat([train_df, tr_df])
-        test_df  = pd.concat([test_df, ts_df])
-        assert(len(set(tr_df[group_index_col]).intersection(set(ts_df[group_index_col])))==0)
-        assert(len(set([rcts.split('.')[0] for rcts in tr_df[rct_smiles_col]]).intersection(set([rcts.split('.')[0] for rcts in ts_df[rct_smiles_col]])))==0)
-        assert(len(set([rcts.split('.')[1] for rcts in tr_df[rct_smiles_col]]).intersection(set([rcts.split('.')[1] for rcts in ts_df[rct_smiles_col]])))==0)
-        train_whole_df = pd.concat([train_whole_df, tr_wh_df])
-        test_whole_df  = pd.concat([test_whole_df, ts_wh_df])
-        plot_corr[name] = (fr1_dict, fr2_dict, frs_coor)
-    return train_df, train_whole_df, test_df, test_whole_df, plot_corr
-
-def CustomFragmentSpaceSplitbyHeavyAtoms(df:pd.DataFrame, group_index_col:str, rct_smiles_col='smiles', test_ratio=0.4, group_subgroup_col:str=None, tol=0.05, max_iter=1000, ret_network=False):
-    assert(test_ratio>0 and test_ratio<1)
-    train_df       = pd.DataFrame(columns=df.columns)
-    train_whole_df = pd.DataFrame(columns=df.columns)
-    test_df        = pd.DataFrame(columns=df.columns)
-    test_whole_df  = pd.DataFrame(columns=df.columns)
-    df_subgroup = df.groupby(group_subgroup_col) if group_subgroup_col is not None else (('_',df,),)
-    plot_corr = dict()
-    for name, subgroup in df_subgroup:
-        frs_pair   = [smi.split('.') for smi in subgroup[rct_smiles_col]]
-        gr_indices = subgroup[group_index_col].copy()
-        gr_dict    = {gr : i for i, gr in enumerate(sorted(set(gr_indices)))}
-        frs_pair_T = [list(x) for x in zip(*frs_pair)]
-        fr1_hatoms_count = pd.Series({cpd: hatom_counter(cpd) for cpd in sorted(list(set(frs_pair_T[0])))})
-        fr2_hatoms_count = pd.Series({cpd: hatom_counter(cpd) for cpd in sorted(list(set(frs_pair_T[1])))})
-        fr1_mcn = fr1_hatoms_count.sort_values().index.to_list()
-        fr2_mcn = fr2_hatoms_count.sort_values().index.to_list()
-        fr1_dict = {fr1 : i for i, fr1 in enumerate(_mixturesortedlist(fr1_mcn))}
-        fr2_dict = {fr2 : i for i, fr2 in enumerate(_mixturesortedlist(fr2_mcn))}
         frs_coor = np.zeros((len(frs_pair), 3))
         for i, (gr, pair) in enumerate(zip(gr_indices,frs_pair)):
             frs_coor[i, 0] = fr1_dict[pair[0]]

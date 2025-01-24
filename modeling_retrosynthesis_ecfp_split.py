@@ -68,20 +68,11 @@ def main():
                 lgr.write(f'Start prediction of dataset {str(file)}')
                 prep_data = pd.read_table(f'{dir_preprocess}/retro_{file_uni_name}_preprocessed.tsv',
                     header = 0, index_col = 0)
-                if split_level == 0:
-                    train_test_idx = CustomSimilaritySplit(prep_data,index_col,'Precursors',0.4,'Rep_reaction')
-                    tr_data = prep_data[prep_data[index_col].isin(train_test_idx['train'])].copy()
-                    ts_data = prep_data[prep_data[index_col].isin(train_test_idx['test'])].copy()
-                    tr_whole_data = None
-                    ts_whole_data = None
-                elif split_level == 1:
+                if  split_level == 1:
                     tr_data, tr_whole_data, ts_data, ts_whole_data    = CustomDissimilarRandomSplit(
                         prep_data,index_col,'Rep_reaction',split_level,'Product_raw')
                 elif split_level == 2:
                     tr_data, tr_whole_data, ts_data, ts_whole_data, _ = CustomFragmentSpaceSplitbyFreq(
-                        prep_data,index_col,'Precursors',0.4,'Rep_reaction')
-                elif split_level == 3:
-                    tr_data, tr_whole_data, ts_data, ts_whole_data, _ = CustomFragmentSpaceSplitbyHeavyAtoms(
                         prep_data,index_col,'Precursors',0.4,'Rep_reaction')
                 if augmentation:
                     tr_data = TransReactantByTemplate(
