@@ -75,5 +75,15 @@ Our results can be reprecated by this json file.
 If you want to obtain reactant pairs from your own reactant file, <code>heavy_atom_count</code> (number of heavy atoms of compound, easily calculated by RDKit) should be contained in your own reactant file.
 
 ## Analyze results
+Results will be stored <code>outputs</code> directory.
+
+<code>
+outputs <br>
+|- datasets : retrosynthesized datasets <br>
+|- preprocessed : preprocessed datasets <br>
+|- prediction_level{n} : results of model construction <br>
+|- reactant_combination_level{n}_{augmented}_{m}_rc{l} : proposed reactant pairs <br>
+</code>
+
 
 Results you obtained can be analyzed by using <code>analysis.ipynb</code>.
