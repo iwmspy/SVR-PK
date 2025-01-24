@@ -81,8 +81,8 @@ Results will be stored <code>outputs</code> directory.
 <code>outputs <br>
 |- datasets : retrosynthesized datasets <br>
 |- preprocessed : preprocessed datasets <br>
-|- prediction_level{n} : results of model construction <br>
-|- reactant_combination_level{n}_{augmented}_{m}_rc{l} : proposed reactant pairs <br>
+|- prediction_level{n}[_augmented] : results of model construction <br>
+|- reactant_combination_level{n}[_augmented]_{m}[_rc{l}] : proposed reactant pairs <br>
 </code>
 
 
