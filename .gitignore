@@ -3,7 +3,7 @@
 # Input and output files
 outputs*/
 chembl31/
-emolecule/
+emolecules/
 log/
 log_example/
 **/.DS_Store
