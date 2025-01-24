@@ -521,7 +521,7 @@ def SmilesExtractor(tpath,smiles_col,idx_col,opath,downsize):
         random_dice = random_dice.astype(bool)
         rng.shuffle(random_dice)
         endpoint = 0
-    df = pd.read_table(tpath,header=0,index_col=0,chunksize=CHUNK)
+    df = pd.read_table(tpath,header=0,index_col=0,chunksize=100000)
     with open(opath,'w') as of:
         df_chunked = next(df)
         if downsize is not None:

@@ -21,11 +21,6 @@ parser.add_argument('-c', '--config', default=f'{pwd}/config/example_config.json
 
 args = parser.parse_args()
 
-# actives = clustering_dataset.dataclustering()
-# active_numbers = generator([int(active.split('-')[1]) for active in actives])
-# active_numbers = (51,72,87,100,107,108,121,155,165,10193)
-# pref = 'retro'
-
 mls_prd  = ['svr_tanimoto']
 mls_rct  = ['svr_tanimoto_split','svr_tanimoto_average','svr_tanimoto']
 

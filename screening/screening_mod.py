@@ -24,7 +24,6 @@ from models.modeling import *
 from utils.utility import mean_of_top_n_elements, tsv_merge, mkdir, timer, AttrJudge, logger, MakeDirIfNotExisting, ArraySplitByN
 from utils.chemutils import ReactionCenter, reactor, is_valid_molecule, MorganbitCalcAsVectorFromSmiles,SmilesExtractor
 from utils.analysis import ValidityAndSuggestedRouteExaminator
-# from utils.clustering import NeighborsSimilarityForSparseMat,NearestNeighborSearchFromSmiles
 
 # Define constants
 CHUNK      = 100000
