@@ -1,0 +1,17 @@
+{
+    "files" : 
+        [
+            "./example/tid-51_example.tsv"
+        ],
+    "index_col" : "ddc_id",
+    "model_smiles_col" : " washed_openeye_smiles",
+    "cand_index_col" : "EMOL_VERSION_ID",
+    "cand_smiles_col"  : "washed_isomeric_kekule_smiles",
+    "objective_col" : "pot.(log,Ki)",
+    "cand_path" : "./example/emolecule_compounds_curated_sample_450k.tsv",
+    "reactions" : ["US06242448B1"],
+    "split_level"   : 2,
+    "downsize"  : 100000,
+    "ext_ratio"  : 1e-1,
+    "precalc" : 1
+}

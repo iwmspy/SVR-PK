@@ -1,0 +1,27 @@
+{
+    "files" : 
+        [
+            "./chembl31/214.tsv",
+            "./chembl31/218.tsv",
+            "./chembl31/261.tsv"
+        ],
+    "index_col" : "ID",
+    "model_smiles_col" : "SMILES",
+    "cand_index_col" : "ID",
+    "cand_smiles_col"  : "SMILES",
+    "objective_col" : "pot.(log,Ki)",
+    "reactions" :
+        [
+            "US20130064770A1",
+            "US20080153850A1",
+            "US05935990"
+        ],
+    "split_level"  : 1,
+    "n_samples"  : 10000,
+    "downsize_sc"  : 10000,
+    "downsize_ts"  : 10000,
+    "ext_ratio"  : 1e-3,
+    "precalc" : 1,
+    "postprocess" : 1,
+    "augmentation" : 1
+}

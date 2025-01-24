@@ -1,0 +1,22 @@
+{
+    "files" : 
+        [
+            "./chembl31/214.tsv",
+            "./chembl31/217.tsv",
+            "./chembl31/218.tsv",
+            "./chembl31/222.tsv",
+            "./chembl31/224.tsv",
+            "./chembl31/225.tsv",
+            "./chembl31/228.tsv",
+            "./chembl31/238.tsv",
+            "./chembl31/240.tsv",
+            "./chembl31/261.tsv"
+        ],
+    "index_col" : "ID",
+    "model_smiles_col" : "SMILES",
+    "cand_index_col" : "ID",
+    "cand_smiles_col"  : "SMILES",
+    "objective_col" : "pot.(log,Ki)",
+    "augmentation" : 1,
+    "split_level"   : 1
+}
