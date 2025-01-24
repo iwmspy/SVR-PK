@@ -34,7 +34,7 @@ You can use your original datasets by creating config file and run below code wi
 |<code>reactions</code>|List of reaction names for generating compounds from reactants|
 |<code>n_samples</code>|Number of reactant pairs to be extracted|
 |<code>downsize_sc</code>|Number of reactants to be sampled in our method|
-|<code>downsize_sc</code>|Number of reactants to be sampled in Thompson samplingad|
+|<code>downsize_ts</code>|Number of reactants to be sampled in Thompson samplingad|
 |<code>ext_ratio</code>|Ratio of number of pairs to be extracted in first screening. The smaller number of pairs will be extracted by the smaller ratio|
 |<code>precalc</code>|Whether reactant smiles are already extracted and mapped or not (If you just want to reprecate our results, you have to set this parameter <code>1</code>)|
 |<code>postprocess</code>|Whether postprocess (synthesizability check etc.) is inplemented or not in screening|
