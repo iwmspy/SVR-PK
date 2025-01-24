@@ -9,7 +9,7 @@ Required packages are writtten on <code>_env/requirements.yml</code>.
 Please create and activate conda environment by following command.
 
 <p>
-<code>conda env create -f _env/environments.yml</code><br>
+<code>conda env create -f _env/requirements.yml</code><br>
 <code>conda activate svr-pk</code><br>
 </p>
 
