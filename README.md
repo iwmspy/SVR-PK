@@ -49,6 +49,8 @@ This procedure contains below modules.
 * <code>preprocess_for_retrosynthesis.py</code>: For preprocessing generated datasets
 * <code>modeling_retrosynthesis_ecfp_split.py</code>: For modeling from reactants
 
+Same parameter (-c) can be used in all of process script. If you already have retrosynthesized and preprocessed files, you can skip <code>generate_retrosynthesis.py</code> and <code>preprocess_for_retrosynthesis.py</code>. i.e. You can run <code>modeling_retrosynthesis_ecfp_split.py -c [your_config_file].json</code> by itself (stand-alone).
+
 Our results can be replicated by this json file.
 
 * <code>chembl_config_lv1.json</code>: Product-based splitting
