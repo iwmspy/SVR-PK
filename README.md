@@ -77,13 +77,14 @@ If you want to obtain reactant pairs from your own reactant file, <code>heavy_at
 ## Analyze results
 Results will be stored <code>outputs</code> directory.
 
-<code>
-outputs <br>
+
+<code>outputs <br>
 |- datasets : retrosynthesized datasets <br>
 |- preprocessed : preprocessed datasets <br>
 |- prediction_level{n} : results of model construction <br>
 |- reactant_combination_level{n}_{augmented}_{m}_rc{l} : proposed reactant pairs <br>
 </code>
+
 
 
 Results you obtained can be analyzed by using <code>analysis.ipynb</code>.
