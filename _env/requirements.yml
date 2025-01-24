@@ -1,4 +1,4 @@
-name: design
+name: svr-pk
 channels:
   - openeye
   - pytorch

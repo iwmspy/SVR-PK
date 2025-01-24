@@ -10,7 +10,7 @@ Please create and activate conda environment by following command.
 
 <p>
 <code>conda env create -f _env/environments.yml</code><br>
-<code>conda activate design</code><br>
+<code>conda activate svr-pk</code><br>
 </p>
 
 Datasets we used can be obtained from this [ZENODO] repository.
