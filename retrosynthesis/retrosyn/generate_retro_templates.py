@@ -608,7 +608,6 @@ def get_fragments_for_changed_atoms(mols, changed_atom_tags, radius=0,
 
     expansion: atoms added during reactant expansion that should be included and
                generalized in product fragment
-    ringinfo : Whether information of ring is included or not into the SMARTS (Added by iwmspy)
     '''
 
     fragments = ''
@@ -654,6 +653,14 @@ def get_fragments_for_changed_atoms(mols, changed_atom_tags, radius=0,
             atoms_to_use, symbol_replacements = expand_atoms_to_use(mol, atoms_to_use, 
                 groups=groups, symbol_replacements=symbol_replacements,
                 super_general=super_general)
+            ### >>>>>Added by iwmspy>>>>> ###
+            for atom_idx in atoms_to_use:
+                if atom_idx not in atoms_to_use_dict['mapped'] + atoms_to_use_dict['unmapped']:
+                    if mol.GetAtomWithIdx(atom_idx).HasProp('molAtomMapNumber'):
+                        atoms_to_use_dict['mapped'] = atoms_to_use_dict['mapped'] + [atom_idx]
+                    else:
+                        atoms_to_use_dict['unmapped'] = atoms_to_use_dict['unmapped'] + [atom_idx]
+            ### <<<<<Added by iwmspy<<<<< ###
 
         if category == 'products':
             # Add extra labels to include (for products only)
