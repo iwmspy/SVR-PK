@@ -13,7 +13,7 @@ Please create and activate conda environment by following command.
 <code>conda activate svr-pk</code><br>
 </p>
 
-Datasets we used can be obtained from this [ZENODO] repository.
+Datasets we used can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository.
 
 ## 0. Configuration
 You can use your original datasets by creating config file and run below code with <code>-c [your config file].json</code> option. Please refer json files stored in <code>config</code> to create your own config file. 
