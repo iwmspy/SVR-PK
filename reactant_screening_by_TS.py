@@ -149,8 +149,8 @@ def main():
             dpath_rct1 = rs.randomselector(rs.mp_rct1,'downsize_ts')
             dpath_rct2 = rs.randomselector(rs.mp_rct2,'downsize_ts')
 
-        SmilesExtractor(dpath_rct1,'washed_isomeric_kekule_smiles','EMOL_VERSION_ID',opath_rct1)
-        SmilesExtractor(dpath_rct2,'washed_isomeric_kekule_smiles','EMOL_VERSION_ID',opath_rct2)
+        SmilesExtractor(dpath_rct1,confs['cand_smiles_col'],confs['cand_index_col'],opath_rct1)
+        SmilesExtractor(dpath_rct2,confs['cand_smiles_col'],confs['cand_index_col'],opath_rct2)
 
         ts_dict = {
             "reagent_file_list": [
@@ -205,7 +205,7 @@ def main():
             lgr.info('This process may takes long.')
             p, shape = ValidityAndSuggestedRouteExaminator(f'{rs.dir_cand}/ts_results_valid.tsv',f'{rs.dir_cand}/ts_results_valid_route.tsv',
                                                 input_smi_col='SMILES',prec_smi_col=None,ext_data_pathes=[rs.mp_rct1,rs.mp_rct2],input_index_col='Name',
-                                                ext_index_col='EMOL_VERSION_ID',ext_smi_col='mapped_smiles',ext_index_sep='_')
+                                                ext_index_col=confs['cand_index_col'],ext_smi_col='mapped_smiles',ext_index_sep='_')
             rs.res_dict['combinations_retro_filter'] = shape
             lgr.info('Check completed.')
             lgr.info(f'{shape} compounds are remained.')
