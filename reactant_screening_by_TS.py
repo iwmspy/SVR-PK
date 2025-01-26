@@ -113,7 +113,6 @@ if downsize is not None:
     out_dir_sc_base  = f'{odir_pref}_{n_samples}_rc{downsize}'
 else:
     out_dir_sc_base  = f'{odir_pref}_{n_samples}'
-MakeDirIfNotExisting(out_dir_sc_base)
 
 if isinstance(reactions, str):
     reactions = [reactions for _ in range(len(files))]
@@ -124,6 +123,7 @@ def main():
     for odr, file in enumerate(files):
         file_uni_name = os.path.split(file)[-1].rsplit('.',1)[0]
         reaction = reactions[odr]
+        MakeDirIfNotExisting(f"{out_dir_sc_base}/{file_uni_name}/{reaction}")
         lgr_name = f"{out_dir_sc_base}/{file_uni_name}/{reaction}/ts_logs.txt"
         lgr = logger(filename=lgr_name)
         lgr.write(f'<<< Start reactant combination of {file_uni_name} >>>')
