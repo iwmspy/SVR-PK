@@ -42,9 +42,11 @@ You can use your original datasets by creating config file and run below code wi
 ## 1. Generate models for screening reactants
 
 Run below code.
-``
+
+```
 python rm_main.py -c [your_config_file].json
 ```
+
 This procedure contains below modules.
 
 * <code>generate_retrosynthesis.py</code>: For generating reactants from actual molecules
