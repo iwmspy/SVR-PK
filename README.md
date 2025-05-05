@@ -8,10 +8,10 @@ Required packages are writtten on <code>_env/requirements.yml</code>.
 
 Please create and activate conda environment by following command.
 
-<p>
-<code>conda env create -f _env/requirements.yml</code><br>
-<code>conda activate svr-pk</code><br>
-</p>
+```
+conda env create -f _env/requirements.yml
+conda activate svr-pk
+```
 
 Datasets we used can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository.
 
@@ -42,7 +42,9 @@ You can use your original datasets by creating config file and run below code wi
 ## 1. Generate models for screening reactants
 
 Run below code.
-<p><code>python rm_main.py -c [your_config_file].json</code></p>
+``
+python rm_main.py -c [your_config_file].json
+```
 This procedure contains below modules.
 
 * <code>generate_retrosynthesis.py</code>: For generating reactants from actual molecules
@@ -62,11 +64,15 @@ Our results can be replicated by this json file.
 
 Reactant screening procedure. 
 
-<p><code>python reactant_screening.py -c [your_config_file].json</code></p>
+```
+python reactant_screening.py -c [your_config_file].json
+```
 
 This script will run Thompson sampling used as a compared method. 
 
-<p><code>python reactant_screening_TS.py -c [your_config_file].json</code></p>
+```
+python reactant_screening_TS.py -c [your_config_file].json
+```
 
 Our results can be replicated by this json file.
 
@@ -79,14 +85,12 @@ If you want to obtain reactant pairs from your own reactant file, <code>heavy_at
 ## Analyze results
 Results will be stored <code>outputs</code> directory.
 
-
-<code>outputs <br>
-|- datasets : retrosynthesized datasets <br>
-|- preprocessed : preprocessed datasets <br>
-|- prediction_level{n}[_augmented] : results of model construction <br>
-|- reactant_combination_level{n}[\_augmented]\_{m}[\_rc{l}] : proposed reactant pairs <br>
-</code>
-
-
+```
+outputs
+|- datasets : retrosynthesized datasets
+|- preprocessed : preprocessed datasets
+|- prediction_level{n}[_augmented] : results of model construction
+|- reactant_combination_level{n}[\_augmented]\_{m}[\_rc{l}] : proposed reactant pairs
+```
 
 Results you obtained can be analyzed by using <code>analysis.ipynb</code>.
