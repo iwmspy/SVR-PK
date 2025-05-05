@@ -287,14 +287,29 @@ class logger:
         :param level: logging level
         :param filename: Filename to write logging to. If None, logging will print to screen.
         """
-        logging.basicConfig(
-            format="%(asctime)s,%(msecs)d %(levelname)-8s %(message)s", datefmt="%Y-%m-%d:%H:%M:%S",
-            filename=filename
-        )
         if name is None:
             name = "RMLogger"
         self.log = logging.getLogger(name)
         self.log.setLevel(level)
+
+        # Remove existing handlers to avoid duplicate logs
+        if self.log.hasHandlers():
+            self.log.handlers.clear()
+
+        # Set up a new handler
+        if filename is not None:
+            MakeDirIfNotExisting(os.path.dirname(filename))
+            handler = logging.FileHandler(filename)
+        else:
+            handler = logging.StreamHandler()
+
+        # Set formatter and add handler
+        formatter = logging.Formatter(
+            fmt="%(asctime)s,%(msecs)d %(levelname)-8s %(message)s",
+            datefmt="%Y-%m-%d:%H:%M:%S"
+        )
+        handler.setFormatter(formatter)
+        self.log.addHandler(handler)
     
     def write(self, msg):
         self.log.info(msg)

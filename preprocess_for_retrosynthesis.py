@@ -34,7 +34,7 @@ def main():
     dir_dataset = f'{out_dir}/datasets'
     dir_prep    = f'{out_dir}/preprocessed'
     MakeDirIfNotExisting(dir_prep)
-    lgr = logger(filename=f'{dir_prep}/preprocess_log.txt')
+    lgr = logger(filename=f'{out_dir}/logs/preprocess_log.txt')
     lgr.write(f'Start {__file__}')
     
     for file in files:

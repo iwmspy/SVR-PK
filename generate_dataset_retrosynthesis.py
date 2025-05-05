@@ -51,7 +51,7 @@ def main():
     
     dir_dataset  = f'{out_dir}/datasets'
     MakeDirIfNotExisting(dir_dataset)
-    lgr = logger(filename=f'{dir_dataset}/generate_log.txt')
+    lgr = logger(filename=f'{out_dir}/logs/generate_log.txt')
     lgr.write(f'Start {__file__}')
     
     lgr.write('Loaded configs.')

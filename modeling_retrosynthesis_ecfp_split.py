@@ -41,7 +41,7 @@ def main():
     if augmentation:
         dir_pred_wrap = f'{dir_pred_wrap}_augmented'
     MakeDirIfNotExisting(dir_pred_wrap)
-    lgr = logger(filename=f'{dir_pred_wrap}/prediction_log.txt')
+    lgr = logger(filename=f'{out_dir}/logs/prediction_log.txt')
     lgr.write(f'Start {__file__}')
     lgr.write(f'Files : ---')
     for file in files:

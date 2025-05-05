@@ -75,7 +75,7 @@ def main():
     rdicts = []
     for odr, file in enumerate(files):
         file_uni_name = os.path.split(file)[-1].rsplit('.',1)[0]
-        lgr = logger(filename=f'{out_dir_sc_base}/screening_log_{file_uni_name}.txt')
+        lgr = logger(filename=f'{out_dir}/logs/screening_log_{file_uni_name}.txt')
         reaction = reactions[odr]
         lgr.write(f'<<< Start reactant combination of {file_uni_name} >>>')
         lgr.write('======Config sets======')
