@@ -5,9 +5,8 @@
     4. Calculate kernel val between candpairs and trainings -> Filter by val >= 0.6
 '''
 
-import os,json,sys
+import os
 import pickle
-import argparse
 import tempfile
 
 import pandas as pd
@@ -15,25 +14,18 @@ import numpy as np
 from rdkit import Chem
 from time import time
 from tqdm import tqdm
-from scipy.sparse import csr_matrix,vstack
-import swifter
+from scipy.sparse import csr_matrix
 from joblib import Parallel, delayed, cpu_count
 
 from models._kernel_and_mod import funcTanimotoSklearn
 from models.modeling import *
-from utils.utility import mean_of_top_n_elements, tsv_merge, mkdir, timer, AttrJudge, logger, MakeDirIfNotExisting, ArraySplitByN
-from utils.chemutils import ReactionCenter, reactor, is_valid_molecule, MorganbitCalcAsVectorFromSmiles,SmilesExtractor
+from utils.utility import tsv_merge, timer, logger, MakeDirIfNotExisting, ArraySplitByN
+from utils.chemutils import ReactionCenter, reactor
 from utils.analysis import ValidityAndSuggestedRouteExaminator
 
 # Define constants
-CHUNK      = 100000
-CHUNK_RCT1 = 1000
-CHUNK_RCT2 = 100
-MAX_COMBS  = 1000000
-R_OF_SCORE = 75
-# n_samples  = 1000000
-# n_samples_per_rct = int(np.sqrt(n_samples))
-SEED = 0
+CHUNK = 100000
+SEED  = 0
 
 rng = np.random.default_rng(seed = SEED)
 
@@ -58,7 +50,6 @@ def _mod_svrpred(kmat1, kmat2, coeff, bias, worker_id, thres_score=None, logger=
         combs.append(combs_tmp.T)
     return combs
 
-
 def _mod_svrpred_extract(kmat1, kmat2, coeff, bias, worker_id, thres_score=None, save_name=None, logger=None):
     combs = _mod_svrpred(kmat1, kmat2, coeff, bias, worker_id, thres_score, logger)
     if len(combs):
@@ -69,7 +60,6 @@ def _mod_svrpred_extract(kmat1, kmat2, coeff, bias, worker_id, thres_score=None,
         return save_name
     else:
         return None
-
 
 def _mod_svrpred_analysis(kmat1, kmat2, coeff, bias, worker_id, ext_ratios_dict=None):
     d_shape = {}
@@ -85,7 +75,6 @@ def _mod_svrpred_analysis(kmat1, kmat2, coeff, bias, worker_id, ext_ratios_dict=
             d_shape[ratio] = len(score_ravel)
     return d_shape
 
-
 def EachArrayLengthCalclator(arrays):
         mcumurateshape = 0
         mcumurateshape_array = np.zeros((len(arrays)+1),dtype=int)
@@ -93,7 +82,6 @@ def EachArrayLengthCalclator(arrays):
             mcumurateshape += mat.shape[0]
             mcumurateshape_array[i+1] = mcumurateshape
         return mcumurateshape_array
-
 
 def extract_n_samples_by_threshold(tsv_path: str, retrieve_size=1000000):
     samples = np.loadtxt(tsv_path,delimiter='\t',dtype=np.float32)
@@ -134,18 +122,12 @@ def NeatCombinationExtractor(array_1: np.array, array_2: np.array, n_samples: in
     return array_1_sample, array_2_sample
 
 
-def GetLogger(path):
-    # Retrieve logging module
-    lgr = logger(filename=path)
-    return lgr
-
 def close_logger(logger):
     """Close all handlers associated with the logger."""
     handlers = logger.handlers[:]
     for handler in handlers:
         handler.close()
         logger.removeHandler(handler)
-
 
 def ShapeConcatenator(ret: list, shape: np.array, read_f=False):
     ret_with_shape = list()

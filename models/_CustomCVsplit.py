@@ -1,16 +1,9 @@
-from sklearn.linear_model import LassoCV
 import numpy as np
 import pandas as pd
 from rdkit import Chem
 import collections as cls
 from scipy.sparse import csr_matrix
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import pairwise_distances
-from sklearn.metrics.pairwise import check_pairwise_arrays
-from joblib import parallel_backend
-import networkx as nx
-import os,sys
-import tempfile
 from copy import deepcopy
 from models._kernel_and_mod import funcTanimotoSklearn
 from utils.chemutils import MorganbitCalcAsVectors

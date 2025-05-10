@@ -82,28 +82,6 @@ def run(app, *argv):
         sys.argv.append(arg)
     app_cls.main()
 
-
-def SmilesExtractor(tpath,smiles_col,idx_col,opath):
-    df = pd.read_table(tpath,header=0,index_col=0,chunksize=CHUNK)
-    with open(opath,'w') as of:
-        df_chunked = next(df)
-        if not df_chunked.empty:
-            idx_list = df_chunked[idx_col].to_list()
-            smi_list = df_chunked[smiles_col].to_list()
-            joined   = [f'{smi}\t{idx}' for idx, smi in zip(idx_list,smi_list)]
-            joined.append('')
-            smi_str  = '\n'.join(joined)
-            of.write(smi_str)
-    with open(opath,'a') as of:
-        for df_chunked in df:
-            if not df_chunked.empty:
-                idx_list = df_chunked[idx_col].to_list()
-                smi_list = df_chunked[smiles_col].to_list()
-                joined   = [f'{smi}\t{idx}' for idx, smi in zip(idx_list,smi_list)]
-                joined.append('')
-                smi_str  = '\n'.join(joined)
-                of.write(smi_str)
-
 if augmentation:
     odir_pref = f'{out_dir}/reactant_combination_level{split_level}_augmented'
 else:

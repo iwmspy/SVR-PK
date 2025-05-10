@@ -18,8 +18,6 @@ from models._kernel_and_mod import *
 from utils.utility import timer
 from utils.chemutils import MorganbitCalcAsVectors,MurckoScaffoldSmilesListFromSmilesList
 
-core_for_generating_morganbits = os.cpu_count() - 1
-
 unique_scaf_length = lambda l,s: str([np.unique(row).size for row in MurckoScaffoldSmilesListFromSmilesList(l,split_components=s).T])
 
 def to_Series(df:pd.DataFrame, index_col:str, val_col:str):

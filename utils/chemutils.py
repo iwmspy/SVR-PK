@@ -25,20 +25,8 @@ cpus = os.cpu_count()
 
 rng = np.random.default_rng(seed = 0)
 
-def _replace(match):
-    string, num = match.groups()
-    return f"[{1000+int(num)-1}{string.upper()}:{num}]"
-
-def colextend(l):
-    if len(l)!=1:
-        return False
-    return l[0]
-
 class ReactionCenter:
     def __init__(self,sma_query,cumurate=True):
-        # pat = r'\[(.*?)\:(\d+)\]'
-        # sma_q_map = re.sub(pat,_replace,sma_query)
-        # fr1, fr2 = Chem.MolFromSmarts(sma_q_map.split('.')[0]),Chem.MolFromSmarts(sma_q_map.split('.')[1])
         self.frs = [AllChem.ReactionFromSmarts(f'{sma}>>{sma}') for sma in sma_query.split('.')]
         cent = 1000
         unmap = 900
@@ -90,14 +78,10 @@ class ReactionCenter:
         return outcomes_list
 
 def SetReactionCenter(sma_query):
-    # pat = r'\[(.*?)\:(\d+)\]'
-    # sma_q_map = re.sub(pat,_replace,sma_query)
-    # fr1, fr2 = Chem.MolFromSmarts(sma_q_map.split('.')[0]),Chem.MolFromSmarts(sma_q_map.split('.')[1])
     fr1, fr2 = Chem.MolFromSmarts(sma_query.split('.')[0]),Chem.MolFromSmarts(sma_query.split('.')[1])
 
     unmap = 900
     for atom in fr1.GetAtoms():
-        # print(f'{atom.GetSymbol()}:{atom.GetIsotope()}, {atom.GetPropsAsDict()}')
         if atom.HasProp('molAtomMapNumber'):
             atom.SetIsotope(1000+int(atom.GetProp('molAtomMapNumber'))-1)
         else:
@@ -105,7 +89,6 @@ def SetReactionCenter(sma_query):
             unmap += 1
         atom.UpdatePropertyCache()
     for atom in fr2.GetAtoms():
-        # print(f'{atom.GetSymbol()}:{atom.GetIsotope()}, {atom.GetPropsAsDict()}')
         if atom.HasProp('molAtomMapNumber'):
             atom.SetIsotope(1000+int(atom.GetProp('molAtomMapNumber'))-1)
         else:
@@ -165,8 +148,6 @@ def reset_isotopes(smiles):
     return Chem.MolToSmiles(umap_mol)
 
 def contains_only_specific_elements(molecule):
-    # if smiles is not None:
-        # molecule = Chem.MolFromSmiles(smiles)
     if molecule is not None:
         elements_to_keep = set(["C", "N", "O", "S", "P", "F", "Cl", "Br", "I"])
         for atom in molecule.GetAtoms():
@@ -176,8 +157,6 @@ def contains_only_specific_elements(molecule):
     return False
     
 def ring_size_checker(molecule):
-    # if smiles is not None:
-        # molecule = Chem.MolFromSmiles(smiles)
     if molecule is not None:
         rings = molecule.GetRingInfo()
         for ring in rings.AtomRings():
@@ -187,14 +166,11 @@ def ring_size_checker(molecule):
     return False
 
 def molwt_checker(molecule,thres=800):
-    # if smiles is not None:
-        # molecule = Chem.MolFromSmiles(smiles)
     if molecule is not None:
         if rdMolDescriptors._CalcMolWt(molecule)<=thres:return True
     return False
 
 def contains_only_one_frags(molecule):
-    # if smiles is not None:
     if len(Chem.GetMolFrags(molecule))==1:
         return True
     return False
@@ -292,48 +268,6 @@ def ChemAnalysisFromMolList(mol_list, return_list=False):
     if return_list: return list(analyzed.values())
     return analyzed
 
-def FlipFlopReactants(reactants_smiles: str, rsmarts: str):
-    reactants 	= Chem.MolFromSmiles(reactants_smiles)
-
-    # reactants of the smarts
-    rcts = rsmarts.split('>>')[1].split('.')
-    print('Extracted reactants:', rcts)
-
-    # count number of atom mappings (must be 1)
-    mapdetector = re.compile('\:[0-9]+\]')
-    first_midx  = mapdetector.findall(rcts[0])
-    second_midx = mapdetector.findall(rcts[1]) 
-    assert len(first_midx) == len(second_midx) == 1
-
-    # replace 2nd (1st) mapindx with the 1st (2nd)
-    new_second  = re.sub(second_midx[0], first_midx[0], rcts[1])
-    new_first   = re.sub(first_midx[0], second_midx[0], rcts[0])
-
-    # if you want to apply separate molecules (not a single mol object), remove (): parenthesis.
-    newquery = f'({rcts[0]}.{rcts[1]})>>{new_first}.{new_second}'
-    rxn = AllChem.ReactionFromSmarts(newquery)
-
-    flipfrags 	= rxn.RunReactants((reactants,))# do not why 8 patterns appear
-    unique_flip_smi = np.unique(['.'.join([Chem.MolToSmiles(fr) for fr in frag]) for frag in flipfrags])
-    assert len(unique_flip_smi) == 1, 'Only single replacement is allowed.'
-
-    new_reactants = [Chem.MolFromSmiles(smi) for smi in unique_flip_smi[0].split('.')]
-    # assign isotope label
-    for i,new_reactant in enumerate(new_reactants):
-        for rct in rcts:
-            query = Chem.MolFromSmarts(rct)
-            for qidx, aidx in enumerate(new_reactant.GetSubstructMatch(query)):
-                atom  = new_reactant.GetAtomWithIdx(aidx)
-                qatom = query.GetAtomWithIdx(qidx) 
-                if qatom.GetAtomMapNum():
-                    atom.SetIsotope(1000)
-                else:
-                    atom.SetIsotope(900)
-
-    smi_flipfrags = '.'.join([Chem.MolToSmiles(new_reactant) for new_reactant in new_reactants])
-
-    return smi_flipfrags
-
 def direct_swapping_frags(rsmiles, rsmarts):
     icenter, ilg = 1000, 900
     reacts = Chem.MolFromSmiles(rsmiles)
@@ -418,7 +352,6 @@ def ReactantAugmentationByTemplate(df: pd.DataFrame, index_col, product_col, rea
             obj   = row[objective_col]
             for r in row.index:
                 row[r] = None
-            # new_smi = FlipFlopReactants(rct, template)
             new_smi = direct_swapping_frags(rct,template)
 
             aug_row  = row.copy()
@@ -440,38 +373,7 @@ def TransReactantByTemplate(df: pd.DataFrame, index_col, product_col, reactant_c
     is_first = True
     for template, temp_df_ in df.groupby(template_col):
         temp_df = temp_df_.copy()
-        # rxncen   = set()
         rxn_template = rdchiralReaction(template)
-        # tmp_obj_for_checking_unique  = AllChem.ReactionFromSmarts(template)
-        # tmp_obj_for_checking_unique.Initialize()
-        # rcts_obj_for_checking_unique = tmp_obj_for_checking_unique.GetProducts()
-        # for i, rct in enumerate(rcts_obj_for_checking_unique):
-        #     for atom in rct.GetAtoms():
-        #         if atom.HasProp('molAtomMapNumber'):
-        #             atom.SetIntProp('ReactionCenter', int(atom.GetProp('molAtomMapNumber')))
-        #             atom.ClearProp('molAtomMapNumber')
-        #             atom.SetIsotope(center_isotope)
-        #             rxncen.add(atom.GetSmarts())
-        #         else:
-        #             atom.SetIsotope(leaving_isotope)
-        # subst_1, subst_2 = rcts_obj_for_checking_unique
-        # mol_1_to_2 = [copy.deepcopy(subst_1),copy.deepcopy(subst_2)]
-        # mol_2_to_1 = [copy.deepcopy(subst_2),copy.deepcopy(subst_1)]
-        # for mol in mol_1_to_2:
-        #     for atom in mol.GetAtoms():
-        #         if atom.HasProp('ReactionCenter'):
-        #             atom.SetIntProp('molAtomMapNumber',1)
-        # for mol in mol_2_to_1:
-        #     for atom in mol.GetAtoms():
-        #         if atom.HasProp('ReactionCenter'):
-        #             atom.SetIntProp('molAtomMapNumber',1)
-
-        # temp_df['augmented'] = False
-        # if len(rcts_obj_for_checking_unique)!=2 or len(rxncen)!=1:
-        #     df_augmented = temp_df.copy() if is_first else pd.concat([df_augmented,temp_df])
-        #     is_first = False
-        #     continue
-
         for idx, row in temp_df.copy().iterrows():
             index   = row[index_col]
             prd     = row[product_col]
@@ -480,8 +382,6 @@ def TransReactantByTemplate(df: pd.DataFrame, index_col, product_col, reactant_c
             obj     = row[objective_col]
             for r in row.index:
                 row[r] = None
-            # new_smi = FlipFlopReactants(rct, template)
-            # new_smi = direct_swapping_frags(rct,template)
             new_smis = rdchiralRun(rxn_template,rdchiralReactants(prd_raw),rc_cumurate=False,num_products=1,num_reactants=2)
             for new_smi_ in new_smis:
                 new_smi = new_smi_[-1]
@@ -549,16 +449,5 @@ def SmilesExtractor(tpath,smiles_col,idx_col,opath,downsize):
                 smi_str  = '\n'.join(joined)
                 of.write(smi_str)
 
-
-
 if __name__=='__main__':
-    # SetReactionCenter("O-[C;H0;+0:1].[NH2;+0:2]")
-    template = '[C;H0;+0:1]-[NH;+0:2]>>O-[C;H0;+0:1].[NH2;+0:2]'
-    rx = ReactionCenter(template.split('>>')[1])
-    smi_1 = 'CC(C)(C)O'
-    smi_2 = 'CCCCN'
-    ret_1 = rx.SetReactionCenter(smi_1,fr=1)
-    ret_2 = rx.SetReactionCenter(smi_2,fr=2)
-    # print(ret)
-    rc = reactor(template)
-    rc.reactor(Chem.MolFromSmiles(ret_1[0]),Chem.MolFromSmiles(ret_2[0]))
+    print(1)
