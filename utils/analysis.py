@@ -6,6 +6,7 @@ from joblib import Parallel, delayed
 import pandas as pd
 import numpy as np
 from scipy import stats
+from scipy.sparse import csr_matrix
 from scipy.stats import gaussian_kde
 from tempfile import TemporaryDirectory
 import os
@@ -13,14 +14,21 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
 from rdkit import Chem
 from rdkit.Chem import Descriptors
+from rdkit.Chem.Scaffolds.MurckoScaffold import MurckoScaffoldSmilesFromSmiles
 import seaborn as sns
 
 from retrosynthesis import retrosep
 from utils.utility import tsv_merge, dfconcatinatorwithlabel
-from utils.chemutils import MurckoScaffoldSmilesListFromSmilesList, is_valid_molecule
+from utils.chemutils import MurckoScaffoldSmilesListFromSmilesList, is_valid_molecule, MorganbitCalcAsVectors
 from utils.SA_Score.sascorer import readFragmentScores, calculateScore
+from models._kernel_and_mod import ProductTanimotoKernel
+from models.modeling import ReactionGroupWrapperModeling
+from utils.clustering import NearestNeighborSearchFromSmiles
+
 
 chunk = 100000
+fsize = 24
+
 
 hist_seed_obj = lambda ax, x, y: ax.hist(x, histtype='step', bins=25, label=y)
 hist_seed_hat = lambda ax, x, y: ax.hist(x, bins=25, label=y, alpha=0.5)
@@ -28,6 +36,13 @@ hist_seed_hat = lambda ax, x, y: ax.hist(x, bins=25, label=y, alpha=0.5)
 descs = {name: method for name, method in Descriptors.descList}
 descs['SAscore'] = calculateScore
 descs_to_use = ['MolWt', 'HeavyAtomCount', 'NumHDonors', 'NumHAcceptors', 'RingCount', 'TPSA', 'MolLogP','SAscore']
+
+com_dict = {
+        'svr_tanimoto_split': 'SVR-PK',
+        'svr_tanimoto_average': 'SVR-SK',
+        'svr_tanimoto': 'SVR-concatECFP'
+    }
+bas_dict = {'svr_tanimoto': 'SVR-baseline'}
 
 def GridGenerator(unique: set):
     num_to_gen = len(unique)
@@ -266,15 +281,16 @@ def load_config(config_file_path):
 
 def load_and_process_data(pred_dir, met):
     """Load and process prediction data."""
-    def read_and_process(file_path):
+    def read_and_process(file_path, reactant=True):
         data = pd.read_table(file_path, header=0, index_col=0).sort_index().replace('-', None).dropna()
-        data.replace('svr_tanimoto', 'svr_tanimoto_concat', inplace=True)
+        if reactant:
+            data.replace('svr_tanimoto', 'svr_tanimoto_concat', inplace=True)
         return data
 
     res_rct_rxn_tr = read_and_process(f'{pred_dir}/prediction_score_rct_train.tsv')
     res_rct_rxn_ts = read_and_process(f'{pred_dir}/prediction_score_rct_test.tsv')
-    res_prd_rxn_tr = read_and_process(f'{pred_dir}/prediction_score_prd_train.tsv')
-    res_prd_rxn_ts = read_and_process(f'{pred_dir}/prediction_score_prd_test.tsv')
+    res_prd_rxn_tr = read_and_process(f'{pred_dir}/prediction_score_prd_train.tsv', reactant=False)
+    res_prd_rxn_ts = read_and_process(f'{pred_dir}/prediction_score_prd_test.tsv', reactant=False)
 
     res_rxn_tr = pd.concat([res_rct_rxn_tr, res_prd_rxn_tr])
     res_rxn_tr['model'] = [met[mod] for mod in res_rxn_tr['model']]
@@ -468,23 +484,32 @@ def plot_augmentation_differences(res_dfs, split_levels, output_path):
     plt.close()
 
 def process_statistical_analysis(confs, files, split_levels, eval_metric):
-    """Perform statistical analysis on prediction results."""
-    prediction_levels = [f'prediction_level{spl}' for spl in split_levels]
-    res_dict = {pslv: {} for pslv in prediction_levels}
-    com_dict = {
-        'svr_tanimoto_split': 'SVR-PK',
-        'svr_tanimoto_average': 'SVR-SK',
-        'svr_tanimoto': 'SVR-concatECFP'
-    }
-    bas_dict = {'svr_tanimoto': 'SVR-baseline'}
+    """
+    Perform statistical analysis on prediction results and return a formatted DataFrame.
+
+    Args:
+        confs (dict): Configuration dictionary.
+        files (list): List of file paths.
+        split_levels (list): List of split levels.
+        eval_metric (str): Evaluation metric (e.g., 'r2').
+
+    Returns:
+        pd.DataFrame: Formatted DataFrame with statistical analysis results.
+    """
+    lab_dict = {1: 'Product-based', 2: 'Reactant-based'}
+
+    results = []
 
     for file in files:
         file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
-        for pslv, split_level in zip(prediction_levels, split_levels):
+        row = {'Dataset': file_uni_name}
+
+        for split_level in split_levels:
             confs['split_level'] = split_level
             pred_dir, _, _ = dirnameextractor('./outputs/prediction', confs)
             pred_dir = os.path.join(pred_dir, file_uni_name)
 
+            # Load prediction results
             res_rct_rxn_ts = pd.read_table(
                 f'{pred_dir}/prediction_score_rct_test.tsv',
                 header=0, index_col=None
@@ -495,8 +520,8 @@ def process_statistical_analysis(confs, files, split_levels, eval_metric):
                 header=0, index_col=None
             ).sort_index().replace('-', None).dropna()
 
-            rlist = []
-            for model in com_dict.keys():
+            # Perform statistical analysis
+            for model, model_name in com_dict.items():
                 res_df_r = pd.concat([
                     res_prd_rxn_ts[res_prd_rxn_ts['model'] == 'svr_tanimoto']
                     .set_index('Rep_reaction')[[eval_metric]]
@@ -507,13 +532,21 @@ def process_statistical_analysis(confs, files, split_levels, eval_metric):
                     .rename(columns={eval_metric: 'reactant'})
                     .astype(np.float64)
                 ], axis=1)
-                rlist.append(stats.wilcoxon(
+
+                p_value = stats.wilcoxon(
                     res_df_r['product'].to_list(),
                     res_df_r['reactant'].to_list(),
                     alternative="two-sided", mode="exact"
-                ).pvalue)
-            res_dict[pslv][file_uni_name] = rlist
-    return res_dict
+                ).pvalue
+
+                col_name = f"{model_name} vs. {bas_dict['svr_tanimoto']} ({lab_dict[split_level]})"
+                row[col_name] = p_value
+
+        results.append(row)
+
+    # Convert results to DataFrame
+    results_df = pd.DataFrame(results).set_index('Dataset').T
+    return results_df
 
 def save_statistical_results(res_dict, output_path, eval_metric):
     """Save statistical analysis results to a TSV file."""
@@ -559,11 +592,13 @@ def analyze_best_model_appearance(confs, files, split_levels, com_dict, bas_dict
             # Map model names
             res_rct_rxn_ts['model'] = res_rct_rxn_ts['model'].map(com_dict)
             res_prd_rxn_ts['model'] = res_prd_rxn_ts['model'].map(bas_dict)
+            res_rct_rxn_ts = res_rct_rxn_ts[~res_rct_rxn_ts['model'].str.startswith('_')]
+            res_prd_rxn_ts = res_prd_rxn_ts[~res_prd_rxn_ts['model'].str.startswith('_')]
 
             # Combine and find the most frequent best model
             res_df_r = pd.concat([res_prd_rxn_ts, res_rct_rxn_ts]).astype({'r2': np.float64}).reset_index()
             res_idx = res_df_r.groupby('Rep_reaction')['r2'].idxmax()
-            rlist.extend(most_frequent_element(res_df_r.loc[res_idx]['model'].to_list()))
+            rlist.append(most_frequent_element(res_df_r.loc[res_idx]['model'].to_list())[0])
 
         # Count appearances
         res_dict[lab_dict[split_level]] = dict(Counter(rlist))
@@ -573,7 +608,7 @@ def analyze_best_model_appearance(confs, files, split_levels, com_dict, bas_dict
     res_df.to_csv(output_path, sep='\t')
     print(f"Results saved to {output_path}")
 
-def analyze_augmentation_effect(confs, files, split_levels, prediction_levels, augmentation, com_dict):
+def analyze_augmentation_effect(confs, files, split_levels, prediction_levels, com_dict):
     """
     Analyze the effect of augmentation on prediction results.
 
@@ -589,6 +624,7 @@ def analyze_augmentation_effect(confs, files, split_levels, prediction_levels, a
         dict: Results of the analysis.
     """
     results = {}
+    augmentation = [0, 1]
 
     for i, pslv in enumerate(prediction_levels):
         confs['split_level'] = split_levels[i]
@@ -597,14 +633,20 @@ def analyze_augmentation_effect(confs, files, split_levels, prediction_levels, a
 
         for file in files:
             file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+            confs_aug = confs.copy()
+            confs['augmentation'] = 0
+            confs_aug['augmentation'] = 1
             pred_dir, _, _ = dirnameextractor('./outputs/prediction', confs)
+            pred_aug_dir, _, _ = dirnameextractor('./outputs/prediction', confs_aug)
             pred_dir = os.path.join(pred_dir, file_uni_name)
+            pred_aug_dir = os.path.join(pred_aug_dir, file_uni_name)
 
             res_df_r = None
             for j, aug in enumerate(augmentation):
                 confs['augmentation'] = aug
+                pdir = pred_aug_dir if aug else pred_dir
                 res_rct_rxn_ts = pd.read_table(
-                    f'{pred_dir}/prediction_score_rct_test.tsv',
+                    f'{pdir}/prediction_score_rct_test.tsv',
                     header=0, index_col=None
                 ).sort_index().replace('-', None).dropna()
 
@@ -642,6 +684,470 @@ def analyze_and_plot_augmentation_effect(config_file_path, output_path):
     # Plot results
     plot_augmentation_differences(res_dfs, split_levels, output_path)
     print(f"Augmentation effect analysis saved to {output_path}")
+
+def grid_generator(unique):
+    """Generate grid dimensions for subplots."""
+    num_to_gen = len(unique)
+    vertical = int(np.floor(np.sqrt(num_to_gen)))
+    horizontal = int(np.ceil(num_to_gen / vertical))
+    return vertical, horizontal
+
+def process_and_plot_correlation(config_path, output_dir='./outputs/prediction', comps=1):
+    """
+    Process prediction results and plot correlations between kernel values and errors.
+
+    Args:
+        config_path (str): Path to the configuration file.
+        output_dir (str): Base directory for prediction outputs.
+        comps (int): Number of components for kernel calculation.
+    """
+    with open(config_path, 'r') as f:
+        confs = json.load(f)
+
+    files = confs["files"]
+    idx_col = confs['index_col']
+    obj_col = confs['objective_col']
+    rct_obj_col = 'svr_tanimoto_split_rct_pred'
+    rct_smi_col = 'Precursors'
+
+    pred_dir_base, _, _ = dirnameextractor(output_dir, confs)
+
+    for file in files:
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        pred_dir = os.path.join(pred_dir_base, file_uni_name)
+
+        # Load data
+        rct_tr = pd.read_table(f'{pred_dir}/prediction_results_rct_train.tsv', header=0, index_col=0)
+        rct_ts = pd.read_table(f'{pred_dir}/prediction_results_rct_test.tsv', header=0, index_col=0)
+
+        # Generate grid for subplots
+        uniques = set(rct_ts['Rep_reaction'])
+        ver, hor = grid_generator(uniques)
+
+        fig, axes = plt.subplots(ver, hor, figsize=(hor * 10, ver * 10))
+        axes = list(axes.flatten()) if isinstance(axes, np.ndarray) else [axes]
+
+        for i, (rxn, rxn_data_rct_ts) in enumerate(rct_ts.groupby('Rep_reaction')):
+            rxn_data_rct_tr = rct_tr[rct_tr['Rep_reaction'] == rxn]
+            rxn_data_rct_ts['abs_error'] = (rxn_data_rct_ts[obj_col] - rxn_data_rct_ts[rct_obj_col]).abs()
+
+            # Calculate kernel values
+            rxn_data_rct_tr_bits = csr_matrix(
+                np.array(MorganbitCalcAsVectors(rxn_data_rct_tr[rct_smi_col], n_jobs=-1, split_components=True))
+            )
+            rxn_data_rct_ts_bits = csr_matrix(
+                np.array(MorganbitCalcAsVectors(rxn_data_rct_ts[rct_smi_col], n_jobs=-1, split_components=True))
+            )
+            sim_mat = ProductTanimotoKernel(rxn_data_rct_ts_bits, rxn_data_rct_tr_bits)
+            knl_val = np.mean(np.sort(sim_mat, axis=1)[:, ::-1][:, :comps], axis=1)
+            rxn_data_rct_ts['knl_val'] = knl_val
+
+            # Plot
+            axes[i].scatter(rxn_data_rct_ts['knl_val'], rxn_data_rct_ts['abs_error'], color='blue')
+            axes[i].set_xlim((0, 1))
+            axes[i].set_title(f'{rxn}', fontsize=fsize)
+            axes[i].set_xlabel('Maximum kernel value', fontsize=fsize)
+            axes[i].set_ylabel('Absolute error value (SVR-PK)', fontsize=fsize)
+            axes[i].set_xticklabels(labels=axes[i].get_xticklabels(), fontsize=fsize)
+            axes[i].set_yticklabels(labels=axes[i].get_yticklabels(), fontsize=fsize)
+
+        fig.suptitle(f'{file_uni_name} correlation of error and kernel value', fontsize=fsize)
+        fig.tight_layout(rect=[0, 0, 1, 0.98])
+        fig.savefig(f'{pred_dir}/prediction_error.png')
+
+        plt.clf()
+        plt.close()
+
+def value_diffs_thres(sr, col_1, col_2, thres=1.0, over=False):
+    """Check if the difference between two columns exceeds a threshold."""
+    if over:
+        return abs(sr[col_1] - sr[col_2]) >= thres
+    return abs(sr[col_1] - sr[col_2]) < thres
+
+def extract_large_errors(config_path, output_dir, diff_thres=0.5):
+    """
+    Extract large errors from prediction results and save the analysis.
+
+    Args:
+        config_path (str): Path to the configuration file.
+        output_dir (str): Base directory for prediction outputs.
+        diff_thres (float): Threshold for determining large errors.
+    """
+    confs = load_config(config_path)
+
+    files = confs["files"]
+    idx_col = confs['index_col']
+    obj_col = confs['objective_col']
+    prd_obj_col = 'svr_tanimoto_prd_pred'
+    rct_obj_col = 'svr_tanimoto_product_rct_pred'
+    split_level = confs['split_level']
+
+    res_dict = {}
+    for file in files:
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        pred_dir, _, _ = dirnameextractor(output_dir, confs)
+
+        # Load prediction data
+        prd_tr = pd.read_table(f'{pred_dir}/prediction_results_prd_train.tsv', header=0, index_col=0)
+        rct_tr = pd.read_table(f'{pred_dir}/prediction_results_rct_train.tsv', header=0, index_col=0)
+        prd_ts = pd.read_table(f'{pred_dir}/prediction_results_prd_test.tsv', header=0, index_col=0)
+        rct_ts = pd.read_table(f'{pred_dir}/prediction_results_rct_test.tsv', header=0, index_col=0)
+
+        is_first = True
+        for rxn, rxn_data_rct_ts in rct_ts.groupby('Rep_reaction'):
+            is_first_inner = True
+            rxn_data_prd_tr = prd_tr[prd_tr['Rep_reaction'] == rxn].copy()
+            rxn_data_prd_ts = prd_ts[prd_ts['Rep_reaction'] == rxn].copy()
+            rxn_data_rct_tr = rct_tr[rct_tr['Rep_reaction'] == rxn].copy()
+
+            # Identify large errors
+            rxn_data_rct_ts['is_over_error'] = rxn_data_rct_ts.apply(
+                value_diffs_thres, axis=1, args=(obj_col, rct_obj_col, diff_thres, True)
+            )
+            rxn_data_prd_ts['is_not_over_error'] = rxn_data_prd_ts.apply(
+                value_diffs_thres, axis=1, args=(obj_col, prd_obj_col, diff_thres, False)
+            )
+            rxn_data_rct_ts_oe = rxn_data_rct_ts[rxn_data_rct_ts['is_over_error']]
+
+            for _, rxn_rct_mod in rxn_data_rct_ts_oe.iterrows():
+                rxn_prd_mod = rxn_data_prd_ts[rxn_data_rct_ts[idx_col] == rxn_rct_mod[idx_col]].copy()
+                assert rxn_prd_mod.shape[0] == 1
+                if rxn_rct_mod['is_over_error'] and rxn_prd_mod['is_not_over_error'].iloc[0]:
+                    rxn_rct_mod['Product_raw'] = rxn_prd_mod['Product_raw'].iloc[0]
+                    rxn_rct_mod[prd_obj_col] = rxn_prd_mod[prd_obj_col].iloc[0]
+                    rxn_rct_mod['is_not_over_error'] = rxn_prd_mod['is_not_over_error'].iloc[0]
+                    data_for_analysis = pd.DataFrame(rxn_rct_mod).T if is_first_inner else pd.concat(
+                        [data_for_analysis, pd.DataFrame(rxn_rct_mod).T]
+                    )
+                    is_first_inner = False
+
+            if is_first_inner:
+                continue
+
+            # Perform nearest neighbor analysis
+            nn_prd = NearestNeighborSearchFromSmiles()
+            nn_prd.fit(rxn_data_prd_tr['Product_raw'].to_list())
+            nn_dists, nn_idxs, nn_smis = nn_prd.transform(data_for_analysis['Product_raw'].to_list())
+            data_for_analysis['nn_cpd_prd'] = nn_smis.ravel()
+            data_for_analysis['nn_dist_prd'] = nn_dists.ravel()
+            data_for_analysis['nn_actual_obj_prd'] = rxn_data_prd_tr.iloc[nn_idxs.ravel()][obj_col].to_list()
+
+            nn_rct = NearestNeighborSearchFromSmiles(split_components=True)
+            nn_rct.fit(rxn_data_rct_tr['Precursors'].to_list())
+            nn_dists, nn_idxs, nn_smis = nn_rct.transform(data_for_analysis['Precursors'].to_list())
+            data_for_analysis['nn_cpd_rct'] = nn_smis.ravel()
+            data_for_analysis['nn_dist_rct'] = nn_dists.ravel()
+            data_for_analysis['nn_actual_obj_rct'] = rxn_data_rct_tr.iloc[nn_idxs.ravel()][obj_col].to_list()
+
+            data_for_analysis_whole = data_for_analysis.copy() if is_first else pd.concat(
+                [data_for_analysis_whole, data_for_analysis]
+            )
+            is_first = False
+
+        if is_first:
+            continue
+
+        # Save results
+        data_for_analysis_whole.to_csv(f'{pred_dir}/error_analyzed.tsv', sep='\t')
+        res_dict[file_uni_name] = data_for_analysis_whole.copy()
+
+    # Save summary to Excel
+    with pd.ExcelWriter(f'{output_dir}/prediction_level{split_level}/error_analyzed_summary.xlsx') as writer:
+        for key, summary in res_dict.items():
+            summary.to_excel(writer, sheet_name=key)
+
+def plot_runtime_comparison(config_path, output_dir, rct_sizes, ids, fsize=20):
+    """
+    Plot runtime comparison between SVR-PK and Thompson sampling.
+
+    Args:
+        config_path (str): Path to the configuration file.
+        output_dir (str): Base directory for output files.
+        rct_sizes (list): List of reactant sizes to analyze.
+        ids (list): List of dataset IDs for labeling.
+        fsize (int): Font size for the plot.
+    """
+    plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.get_cmap('tab20').colors)
+    plt.rcParams["font.family"] = 'Nimbus Roman'
+
+    with open(config_path, 'r') as f:
+        confs = json.load(f)
+
+    combs, tims_sc, tims_ts = [], [], []
+
+    for rsize in rct_sizes:
+        confs['downsize_sc'] = rsize
+        _, dir_sc, _ = dirnameextractor(output_dir, confs)
+        tim_sc = pd.read_table(f'{dir_sc}/svr-pk_screening_result_analysis.tsv', index_col='dataset', header=0)
+        tim_ts = pd.read_table(f'{dir_sc}/thompson_screening_result_analysis.tsv', index_col='dataset', header=0)
+
+        tims_sc.append(tim_sc['rct1_kernel_calctime'] + tim_sc['rct2_kernel_calctime'] +
+                       tim_sc['evaluation_time'] + tim_sc['extraction_time'])
+        tims_ts.append(tim_ts['sampling_time'])
+        combs.append(tim_sc['possible_combinations'])
+
+    idxs = list(range(len(tims_sc)))
+    tims_sc_df = pd.DataFrame(tims_sc, index=idxs).T
+    tims_ts_df = pd.DataFrame(tims_ts, index=idxs).T
+    combs_df = pd.DataFrame(combs, index=idxs).T
+
+    fig, ax = plt.subplots(1, 1, figsize=(15, 10))
+
+    for id, idx in zip(ids, tims_sc_df.index):
+        ax.plot(combs_df.loc[idx], tims_sc_df.loc[idx], '-o', label=f'{id} SVR-PK', lw=3)
+        ax.plot(combs_df.loc[idx], tims_ts_df.loc[idx], '-o', label=f'{id} Thompson', lw=3)
+
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.legend(fontsize=fsize)
+    ax.set_xticklabels(labels=ax.get_xticklabels(), fontsize=fsize)
+    ax.set_xlabel('Number of combinations', fontsize=fsize)
+    ax.set_yticklabels(labels=ax.get_yticklabels(), fontsize=fsize)
+    ax.set_ylabel('Execution time', fontsize=fsize)
+    fig.tight_layout()
+
+    plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.get_cmap('tab10').colors)
+
+import os
+import json
+from tempfile import TemporaryDirectory
+import pandas as pd
+from utils.utility import tsv_merge
+from utils.analysis import dirnameextractor
+
+def extract_high_scored_compounds(config_path, output_dir, chunk_size=100000, ts_pred_col='score',svr_pred_col='svr_tanimoto_predict'):
+    """
+    Extract high-scored compounds by comparing SVR-PK and Thompson sampling.
+
+    Args:
+        config_path (str): Path to the configuration file.
+        output_dir (str): Base directory for output files.
+        chunk_size (int): Size of chunks for reading large files.
+        ts_pred_col (str): Column name for predicted scores.
+        svr_pred_col (str): Column name for predicted scores.
+    """
+    with open(config_path, 'r') as f:
+        confs = json.load(f)
+
+    files = confs["files"]
+
+    for i, file in enumerate(files):
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        rxn = confs['reactions'][i]
+
+        # Define paths
+        dir_preds, dir_sc, _ = dirnameextractor(output_dir, confs)
+        dir_preds = f"{dir_preds}/{file_uni_name}"
+        dir_sc = f"{dir_sc}/{file_uni_name}/{rxn}"
+        sc_preds_path = f'{dir_sc}/{file_uni_name}_{rxn}_rct_candidates_pairs_whole_sparse_split_highscored_route.tsv'
+        thompson_sc_path = f'{dir_sc}/ts_results_valid_route.tsv'
+
+        # Determine threshold from Thompson sampling
+        thompson_sc_chunk = pd.read_table(thompson_sc_path, header=0, index_col=0, chunksize=chunk_size)
+        min_ts = min(chunk[ts_pred_col].min() for chunk in thompson_sc_chunk)
+
+        # Extract high-scored compounds
+        sc_preds_chunked = pd.read_table(sc_preds_path, header=0, index_col=0, chunksize=chunk_size)
+        sc_preds_ot_paths = []
+        with TemporaryDirectory() as tmpdir:
+            for j, sc_preds in enumerate(sc_preds_chunked):
+                sc_preds_overthres = sc_preds[sc_preds[svr_pred_col] >= min_ts].copy()
+                output_path = f'{tmpdir}/{j}.tsv'
+                sc_preds_overthres.to_csv(output_path, sep='\t')
+                sc_preds_ot_paths.append(output_path)
+            tsv_merge(sc_preds_ot_paths, f'{sc_preds_path.rsplit(".", 1)[0]}_to_compare.tsv')
+
+def analyze_high_scored_compounds(config_path, output_dir, chunk_size=100000, pred_col='svr_tanimoto_predict'):
+    """
+    Analyze high-scored compounds by comparing SVR-PK and Thompson sampling.
+
+    Args:
+        config_path (str): Path to the configuration file.
+        output_dir (str): Base directory for output files.
+        chunk_size (int): Size of chunks for reading large files.
+        pred_col (str): Column name for predicted scores.
+    """
+    with open(config_path, 'r') as f:
+        confs = json.load(f)
+
+    files = confs["files"]
+    reactions = confs["reactions"]
+
+    # Load candidate SMILES
+    cand_path = './emolecule/emolecule_compounds_curated.tsv'
+    cand_idx_smi = pd.concat(
+        pd.read_table(cand_path, header=0, index_col=0, chunksize=chunk_size)
+    )['washed_isomeric_kekule_smiles'].to_dict()
+
+    for i, file in enumerate(files):
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        rxn = reactions[i]
+
+        # Define paths
+        dir_preds, dir_sc, _ = dirnameextractor(output_dir, confs)
+        dir_preds = f"{dir_preds}/{file_uni_name}"
+        dir_sc = f"{dir_sc}/{file_uni_name}/{rxn}"
+        sc_preds_path = f'{dir_sc}/{file_uni_name}_{rxn}_rct_candidates_pairs_whole_sparse_split_highscored_retrieved_route.tsv'
+        thompson_sc_path = f'{dir_sc}/ts_results_valid_route.tsv'
+
+        # Analyze Thompson sampling results
+        thompson_sc_chunk = pd.read_table(thompson_sc_path, header=0, index_col=0, chunksize=chunk_size)
+        thompson_scores = []
+        thompson_scaf_whole = []
+        thompson_prd = set()
+        for chunk in thompson_sc_chunk:
+            thompson_scores.extend(chunk['score'])
+            thompson_scaf_whole.extend(
+                MurckoScaffoldSmilesFromSmiles(chunk['SMILES'].to_numpy().ravel())
+            )
+            thompson_prd.update(chunk['SMILES'])
+
+        thompson_scaf_count = Counter(thompson_scaf_whole)
+        pd.DataFrame(thompson_scaf_count.most_common(), columns=['scaf', 'appearance']).to_csv(
+            f'{dir_sc}/ts_appearance.tsv', sep='\t'
+        )
+        print(f'Results saved to {dir_sc}/ts_appearance.tsv')
+
+        # Analyze SVR-PK results
+        sc_preds_chunked = pd.read_table(sc_preds_path, header=0, index_col=0, chunksize=chunk_size)
+        sc_scaf_whole = []
+        sc_preds_product = set()
+        for chunk in sc_preds_chunked:
+            sc_preds_overthres = chunk[chunk[pred_col] >= min(thompson_scores)]
+            sc_scaf_whole.extend(
+                MurckoScaffoldSmilesFromSmiles(sc_preds_overthres['Product_norxncenter'].to_numpy().ravel())
+            )
+            sc_preds_product.update(sc_preds_overthres['Product_norxncenter'])
+
+        sc_scaf_count = Counter(sc_scaf_whole)
+        pd.DataFrame(sc_scaf_count.most_common(), columns=['scaf', 'appearance']).to_csv(
+            f'{dir_sc}/sc_appearance.tsv', sep='\t'
+        )
+
+        # Print summary
+        print(f'<<<Set of reactants {file_uni_name}.{rxn}>>>')
+        print(f'--Screening by our methods--')
+        print(f'Shape (Product): {len(sc_preds_product)} (Unique scafs: {len(set(sc_scaf_whole))})')
+        print(f'--Screening by Thompson sampling--')
+        print(f'Shape (Product): {len(thompson_prd)} (Unique scafs: {len(set(thompson_scaf_whole))})')
+
+        print(f'Results saved to {dir_sc}/ts_appearance.tsv')
+        print(f'Results saved to {dir_sc}/sc_appearance.tsv')
+
+
+def plot_descriptor_boxplots(config_path, output_path, method='svr_tanimoto', fsize=20):
+    """
+    Generate and save boxplots for molecular descriptors.
+
+    Args:
+        config_path (str): Path to the configuration file.
+        output_path (str): Path to save the output plot.
+        method (str): Method name for prediction.
+        fsize (int): Font size for the plot.
+    """
+    pred_col = f'{method}_predict'
+
+    # Load configuration
+    with open(config_path, 'r') as f:
+        confs = json.load(f)
+
+    files = confs["files"]
+    reactions = confs["reactions"]
+
+    # Prepare subplots
+    num_descs = len(descs_to_use)
+    rows = int(np.ceil(num_descs / 2))
+    fig, axes = plt.subplots(rows, 2, figsize=(15, rows * 5))
+    axes = axes.flatten()
+
+    res_dict = {}
+
+    for i, file in enumerate(files):
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        rxn = reactions[i]
+
+        # Define paths
+        _, dir_sc, _ = dirnameextractor('./outputs/reactant_combination', confs)
+        dir_sc = f"{dir_sc}/{file_uni_name}/{rxn}"
+        sc_preds_path = f'{dir_sc}/{file_uni_name}_{rxn}_rct_candidates_pairs_whole_sparse_split_highscored_retrieved_route.tsv'
+        thompson_sc_path = f'{dir_sc}/ts_results_valid_route.tsv'
+
+        # Load data
+        try:
+            sc_preds = pd.read_table(sc_preds_path, header=0, index_col=0)
+        except:
+            sc_preds = pd.DataFrame()
+
+        try:
+            thompson_sc = pd.read_table(thompson_sc_path, header=0, index_col=0)
+            min_ts = np.min(thompson_sc['score'])
+        except:
+            thompson_sc = pd.DataFrame()
+            min_ts = -np.inf
+
+        # Filter predictions
+        sc_preds_filtered = sc_preds[sc_preds[pred_col] >= min_ts] if not sc_preds.empty else pd.DataFrame()
+
+        # Calculate descriptors
+        rdict = {}
+        try:
+            rdict['SVR-PK'] = pd.concat([
+                sc_preds_filtered[['Product_norxncenter']],
+                pd.DataFrame(
+                    DescriptorCalculator(
+                        sc_preds_path,
+                        f'{sc_preds_path.rsplit(".", 1)[0]}_descs.tsv',
+                        'Product_norxncenter'
+                    ),
+                    index=sc_preds.index
+                ).loc[sc_preds_filtered.index]
+            ], axis=1).rename(columns={'Product_norxncenter': 'SMILES'})
+        except:
+            pass
+
+        try:
+            rdict['Thompson'] = pd.concat([
+                thompson_sc[['SMILES']],
+                pd.DataFrame(
+                    DescriptorCalculator(
+                        thompson_sc_path,
+                        f'{thompson_sc_path.rsplit(".", 1)[0]}_descs.tsv',
+                        'SMILES'
+                    ),
+                    index=thompson_sc.index
+                )
+            ], axis=1)
+        except:
+            pass
+
+        if rdict:
+            rdf = dfconcatinatorwithlabel(rdict, 'Method')
+            res_dict[file_uni_name] = rdf
+
+    # Combine results
+    res_df = dfconcatinatorwithlabel(res_dict, 'uni_name')
+
+    # Plot descriptors
+    for i, desc in enumerate(descs_to_use):
+        boxplotter(x='uni_name', y=desc, data=res_df, hue='Method', ax=axes[i])
+
+    # Adjust plot settings
+    for ax in axes:
+        if ax.get_legend() is not None:
+            ax.get_legend().remove()
+        ax.set_xticklabels(labels=ax.get_xticklabels(), fontsize=fsize)
+        ax.set_yticklabels(labels=ax.get_yticklabels(), fontsize=fsize)
+
+    fig.legend(handles=axes[0].get_legend_handles_labels()[0],
+               labels=axes[0].get_legend_handles_labels()[1],
+               fontsize=fsize, loc='lower center', ncols=len(axes[0].get_legend_handles_labels()[1]))
+    fig.tight_layout()
+    fig.subplots_adjust(left=0.07, bottom=0.08, right=0.99, top=0.95)
+    fig.savefig(output_path)
+    print(f"Boxplots saved to {output_path}")
+
+    plt.clf()
+    plt.close()
 
 if __name__ == "__main__":
    print(1)
