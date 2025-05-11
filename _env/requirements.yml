@@ -1,6 +1,5 @@
-name: svr-pk-test
+name: svr-pk
 channels:
-  - defaults
   - conda-forge
 dependencies:
   - rdkit=2023.9.5
@@ -11,4 +10,3 @@ dependencies:
   - seaborn
   - swifter
   - tqdm
-prefix: /home/iwasaki/miniconda3/envs/svr-pk-test
