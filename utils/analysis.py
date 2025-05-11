@@ -1,21 +1,20 @@
 from collections import Counter
 import json
 import os
+from tempfile import TemporaryDirectory
 
 from joblib import Parallel, delayed
-import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
 import numpy as np
+import pandas as pd
 from scipy import stats
 from scipy.sparse import csr_matrix
 from scipy.stats import gaussian_kde
-from tempfile import TemporaryDirectory
-import os
-import matplotlib.pyplot as plt
-from matplotlib.ticker import PercentFormatter
+import seaborn as sns
 from rdkit import Chem
 from rdkit.Chem import Descriptors
 from rdkit.Chem.Scaffolds.MurckoScaffold import MurckoScaffoldSmilesFromSmiles
-import seaborn as sns
 
 from retrosynthesis import retrosep
 from utils.utility import tsv_merge, dfconcatinatorwithlabel
@@ -870,8 +869,7 @@ def plot_runtime_comparison(config_path, output_dir, rct_sizes, ids, fsize=20):
     plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.get_cmap('tab20').colors)
     plt.rcParams["font.family"] = 'Nimbus Roman'
 
-    with open(config_path, 'r') as f:
-        confs = json.load(f)
+    confs = load_config(config_path)
 
     combs, tims_sc, tims_ts = [], [], []
 
@@ -908,13 +906,6 @@ def plot_runtime_comparison(config_path, output_dir, rct_sizes, ids, fsize=20):
 
     plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.get_cmap('tab10').colors)
 
-import os
-import json
-from tempfile import TemporaryDirectory
-import pandas as pd
-from utils.utility import tsv_merge
-from utils.analysis import dirnameextractor
-
 def extract_high_scored_compounds(config_path, output_dir, chunk_size=100000, ts_pred_col='score',svr_pred_col='svr_tanimoto_predict'):
     """
     Extract high-scored compounds by comparing SVR-PK and Thompson sampling.
@@ -945,6 +936,7 @@ def extract_high_scored_compounds(config_path, output_dir, chunk_size=100000, ts
         # Determine threshold from Thompson sampling
         thompson_sc_chunk = pd.read_table(thompson_sc_path, header=0, index_col=0, chunksize=chunk_size)
         min_ts = min(chunk[ts_pred_col].min() for chunk in thompson_sc_chunk)
+        print(f'Minimum TS score: {min_ts}')
 
         # Extract high-scored compounds
         sc_preds_chunked = pd.read_table(sc_preds_path, header=0, index_col=0, chunksize=chunk_size)
@@ -956,6 +948,7 @@ def extract_high_scored_compounds(config_path, output_dir, chunk_size=100000, ts
                 sc_preds_overthres.to_csv(output_path, sep='\t')
                 sc_preds_ot_paths.append(output_path)
             tsv_merge(sc_preds_ot_paths, f'{sc_preds_path.rsplit(".", 1)[0]}_to_compare.tsv')
+        print(f'Extracted high-scored compounds saved to {sc_preds_path.rsplit(".", 1)[0]}_to_compare.tsv')
 
 def analyze_high_scored_compounds(config_path, output_dir, chunk_size=100000, pred_col='svr_tanimoto_predict'):
     """
