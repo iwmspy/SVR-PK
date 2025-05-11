@@ -18,6 +18,12 @@ def dfconcatinatorwithlabel(dfs : dict, label: str='label'):
     new_df = pd.concat(dfs_)
     return new_df
 
+def mean_of_top_n_elements(arr, n):
+    sorted_indices = np.argsort(-arr, axis=1)
+    top_n_values = np.take_along_axis(arr, sorted_indices[:, :n], axis=1)
+    mean_values = np.mean(top_n_values, axis=1).reshape(-1,1)
+    return mean_values
+
 def tsv_merge(tsv_list:list, merge_file:list, raw_df=False, chunksize:int=10000):
     if not(raw_df):
         first = pd.read_table(tsv_list[0],index_col=0,header=0,

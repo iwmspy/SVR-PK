@@ -641,49 +641,4 @@ class ReactionWholeWrapperModeling(ReactionGroupWrapperModeling):
 
 if __name__ == "__main__":
     print(1)
-    # tid = pd.read_table(path, header=0,
-    #                     index_col=0)
-
-    # model = modeling()
-
-    # tid_desc_col = tid.iloc[:,tid.columns.get_loc('Fragment2_rdkit_mol')+1:].columns.tolist()
-
-    # train,test = model.dataset(tid, tid_desc_col, ['pot.(log,Ki)'], identify_col='ddc_id')
-    # gridsearch = ['svg', 'linear-svg', 'random-forest', 'lasso']
-    # est_list = []
-
-    # # make plot
-    # fig = plt.figure(figsize=(12, 10))
-    # axes_1 = fig.add_subplot(2,2,1)
-    # axes_2 = fig.add_subplot(2,2,2)
-    # axes_3 = fig.add_subplot(2,2,3)
-    # axes_4 = fig.add_subplot(2,2,4)
-    # axes = [axes_1, axes_2, axes_3, axes_4]
-    # df_pred_train_fr = train.copy().iloc[:,:4]
-    # df_pred_test_fr = test.copy().iloc[:,:4]
-
-    # for i, m in enumerate(gridsearch):
-    #     model.set_models(m)
-    #     model.best_param_search(save_prefix=f'{name}_{m}')
-    #     pred_y_train, pred_y_test = model.predict()
-    #     err_y_train = np.abs(np.array(df_pred_train_fr.loc[:,'pot.(log,Ki)'].to_list()) - pred_y_train.reshape(-1))
-    #     err_y_test = np.abs(np.array(df_pred_test_fr.loc[:,'pot.(log,Ki)'].to_list()) - pred_y_test.reshape(-1))
-    #     df_pred_train_fr = pd.concat([df_pred_train_fr.reset_index().drop('index',axis=1), pd.DataFrame(pred_y_train, columns=[f'pred_{m}']), pd.DataFrame(err_y_train, columns=[f'abs_err_{m}'])], axis=1)
-    #     df_pred_test_fr = pd.concat([df_pred_test_fr.reset_index().drop('index',axis=1), pd.DataFrame(pred_y_test, columns=[f'pred_{m}']), pd.DataFrame(err_y_test, columns=[f'abs_err_{m}'])], axis=1)
-    #     est_list.append(model.evaluation())
-    #     model.plot(axes[i])
     
-    # fig.suptitle(f'{name}')
-    # fig.tight_layout()
-    # fig.savefig(f'{name}.png')
-
-    # model.importance(f'{name}')
-
-    # # make table of values
-    # val = pd.DataFrame({"Name":['R2','R2pred','RMSE','RMSEpred'],
-    #                     "Gausian-SVM":est_list[0],
-    #                     "Linear-SVM":est_list[1],
-    #                     "Random-forest":est_list[2],
-    #                     "Lasso":est_list[3]
-    #                     })
-    # print(val)

@@ -14,6 +14,26 @@ hatom_counter   = lambda w : Chem.MolFromSmiles(w).GetNumHeavyAtoms()
 cpd_splitter    = lambda x : pd.Series(x.split('.'))
 
 def CustomCorrelationChecker(df: pd.DataFrame, index_col, thres: float=0.6):
+    """
+    Filters a DataFrame by removing rows based on correlation of unique values 
+    in a specified column grouped by a reaction column.
+    This function identifies groups of rows in the DataFrame that share a 
+    common value in the 'Rep_reaction' column. It then calculates the 
+    correlation of unique values in the specified `index_col` between these 
+    groups. If the correlation between two groups exceeds the given threshold, 
+    the group with fewer unique values is marked for removal. The function 
+    returns a filtered DataFrame containing only the remaining groups.
+    Args:
+        df (pd.DataFrame): The input DataFrame containing the data to be filtered.
+        index_col (str): The name of the column whose unique values are used 
+                         to calculate correlation between groups.
+        thres (float, optional): The correlation threshold above which groups 
+                                 are considered too similar. Defaults to 0.6.
+    Returns:
+        pd.DataFrame: A filtered DataFrame containing only the rows from groups 
+                      that were not marked for removal.
+    """
+
     d = {
         rct : set(df[df['Rep_reaction']==rct][index_col].to_list())
         for rct in set(df['Rep_reaction'])

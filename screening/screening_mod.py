@@ -121,14 +121,6 @@ def NeatCombinationExtractor(array_1: np.array, array_2: np.array, n_samples: in
     
     return array_1_sample, array_2_sample
 
-
-def close_logger(logger):
-    """Close all handlers associated with the logger."""
-    handlers = logger.handlers[:]
-    for handler in handlers:
-        handler.close()
-        logger.removeHandler(handler)
-
 def ShapeConcatenator(ret: list, shape: np.array, read_f=False):
     ret_with_shape = list()
     for r,s in zip(ret,shape):
@@ -630,7 +622,4 @@ class ReactantScreening:
             self.lgr(f'Total number of combinations (ratio={ratio}): {d["shape"]}')
         self.lgr(f'Execution time: {time() - strt_time} sec.')
 
-    def close_log(self):
-        if self.logger is not None:
-            close_logger(self.logger)
 

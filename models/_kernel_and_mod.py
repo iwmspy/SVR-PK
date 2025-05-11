@@ -38,6 +38,28 @@ def funcTanimotoSklearn(x, y=None, n_jobs=1):
                                 metric='jaccard',n_jobs=n_jobs)
     return 1 - jdist
 
+def funcJaccardSklearn(x, y=None, n_jobs=1):
+    x, y  = check_pairwise_arrays(x, y)
+    if isspmatrix(x): return 1 - _SparseTanimotoSimilarities(x, y)
+    if (x.ndim == 1) and (y.ndim ==1):
+        jdist = pairwise_distances(x.astype(bool, copy=False).reshape(1,-1), 
+                                y.astype(bool, copy=False).reshape(1,-1), 
+                                metric='jaccard',n_jobs=n_jobs)
+    else:
+        jdist = pairwise_distances(x.astype(bool, copy=False), 
+                                y.astype(bool, copy=False), 
+                                metric='jaccard',n_jobs=n_jobs)
+    return jdist
+
+def ProductJaccardKernel(x, y=None, len_first=8192, n_jobs=1):
+    x, y = check_pairwise_arrays(x, y)
+    x1, x2 = x[:,:len_first], x[:,len_first:]
+    y1, y2 = y[:,:len_first], y[:,len_first:]
+    k1 = funcTanimotoSklearn(x1, y1, n_jobs=n_jobs)
+    k2 = funcTanimotoSklearn(x2, y2, n_jobs=n_jobs)
+    kproduct = k1*k2
+    return 1 - kproduct
+
 def ProductTanimotoKernel(x, y=None, len_first=8192, n_jobs=1):
     x, y = check_pairwise_arrays(x, y)
     x1, x2 = x[:,:len_first], x[:,len_first:]
