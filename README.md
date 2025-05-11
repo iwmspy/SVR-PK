@@ -70,12 +70,6 @@ Reactant screening procedure.
 python reactant_screening.py -c [your_config_file].json
 ```
 
-This script will run Thompson sampling used as a compared method. 
-
-```
-python reactant_screening_TS.py -c [your_config_file].json
-```
-
 Our results can be replicated by this json file.
 
 * <code>chembl_config_for_screening_1k.json</code>: Reactant pair screening (sample 1k reactants for each, just for rate measurement)
@@ -83,6 +77,24 @@ Our results can be replicated by this json file.
 * <code>chembl_config_for_screening_100k.json</code>: Reactant pair screening (sample 100k reactant for each)
 
 If you want to obtain reactant pairs from your own reactant file, <code>heavy_atom_count</code> (number of heavy atoms of compound, easily calculated by RDKit) should be contained in your own reactant file.
+
+## 3. Method for comparison
+
+Thompson sampling was used as the comparison method (https://pubs.acs.org/doi/10.1021/acs.jcim.3c01790).
+
+The script was downloaded from [GitHub](https://github.com/PatWalters/TS) on 2024/6/7 and is stored in the <code>_benchmarking</code> directory. 
+
+We have made the following **two major changes** from the original repository.
+ - Addition of the evaluation function (<code>ObjectiveEvaluatorByTanimotoKernel</code> in <code>_benchmarking/TS_main_20240607/evaluators.py</code>)
+ - Set random seed (to ensure reproducibility)
+
+The comparison method can be run by following command. 
+
+```
+python reactant_screening_TS.py -c [your_config_file].json
+```
+
+You can use the same <code>json</code> file used in our method for configuration.
 
 ## Analyze results
 Results will be stored <code>outputs</code> directory.
