@@ -284,7 +284,7 @@ def test_ml_classifier_eval():
     print(score)
 
 class ObjectiveEvaluatorByTanimotoKernel(Evaluator):
-    """Added by Yuto IWASAKI (09/06/2024)
+    """Added by iwmspy (09/06/2024)
         A evaluation class that calculates objective values (Such as inhibitation constants)
     """
 
