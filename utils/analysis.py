@@ -906,127 +906,112 @@ def plot_runtime_comparison(config_path, output_dir, rct_sizes, ids, fsize=20):
 
     plt.rcParams["axes.prop_cycle"] = plt.cycler("color", plt.get_cmap('tab10').colors)
 
-def extract_high_scored_compounds(config_path, output_dir, chunk_size=100000, ts_pred_col='score',svr_pred_col='svr_tanimoto_predict'):
+def create_analysis_dataframe(config_path, output_dir, rxns_path):
     """
-    Extract high-scored compounds by comparing SVR-PK and Thompson sampling.
+    Create a DataFrame based on the specified requirements and save it as a TSV file.
 
     Args:
         config_path (str): Path to the configuration file.
         output_dir (str): Base directory for output files.
-        chunk_size (int): Size of chunks for reading large files.
-        ts_pred_col (str): Column name for predicted scores.
-        svr_pred_col (str): Column name for predicted scores.
+        rxns_path (str): Path to the RXNs DataFrame.
     """
-    with open(config_path, 'r') as f:
-        confs = json.load(f)
-
-    files = confs["files"]
-
-    for i, file in enumerate(files):
-        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
-        rxn = confs['reactions'][i]
-
-        # Define paths
-        dir_preds, dir_sc, _ = dirnameextractor(output_dir, confs)
-        dir_preds = f"{dir_preds}/{file_uni_name}"
-        dir_sc = f"{dir_sc}/{file_uni_name}/{rxn}"
-        sc_preds_path = f'{dir_sc}/{file_uni_name}_{rxn}_rct_candidates_pairs_whole_sparse_split_highscored_route.tsv'
-        thompson_sc_path = f'{dir_sc}/ts_results_valid_route.tsv'
-
-        # Determine threshold from Thompson sampling
-        thompson_sc_chunk = pd.read_table(thompson_sc_path, header=0, index_col=0, chunksize=chunk_size)
-        min_ts = min(chunk[ts_pred_col].min() for chunk in thompson_sc_chunk)
-        print(f'Minimum TS score: {min_ts}')
-
-        # Extract high-scored compounds
-        sc_preds_chunked = pd.read_table(sc_preds_path, header=0, index_col=0, chunksize=chunk_size)
-        sc_preds_ot_paths = []
-        with TemporaryDirectory() as tmpdir:
-            for j, sc_preds in enumerate(sc_preds_chunked):
-                sc_preds_overthres = sc_preds[sc_preds[svr_pred_col] >= min_ts].copy()
-                output_path = f'{tmpdir}/{j}.tsv'
-                sc_preds_overthres.to_csv(output_path, sep='\t')
-                sc_preds_ot_paths.append(output_path)
-            tsv_merge(sc_preds_ot_paths, f'{sc_preds_path.rsplit(".", 1)[0]}_to_compare.tsv')
-        print(f'Extracted high-scored compounds saved to {sc_preds_path.rsplit(".", 1)[0]}_to_compare.tsv')
-
-def analyze_high_scored_compounds(config_path, output_dir, chunk_size=100000, pred_col='svr_tanimoto_predict'):
-    """
-    Analyze high-scored compounds by comparing SVR-PK and Thompson sampling.
-
-    Args:
-        config_path (str): Path to the configuration file.
-        output_dir (str): Base directory for output files.
-        chunk_size (int): Size of chunks for reading large files.
-        pred_col (str): Column name for predicted scores.
-    """
-    with open(config_path, 'r') as f:
-        confs = json.load(f)
-
+    # Load configuration and RXNs DataFrame
+    confs = load_config(config_path)
+    rxns = pd.read_table(rxns_path)
+    rxns.set_index('Identifier', inplace=True)
     files = confs["files"]
     reactions = confs["reactions"]
+    n_samples = confs["n_samples"]
 
-    # Load candidate SMILES
-    cand_path = './emolecule/emolecule_compounds_curated.tsv'
-    cand_idx_smi = pd.concat(
-        pd.read_table(cand_path, header=0, index_col=0, chunksize=chunk_size)
-    )['washed_isomeric_kekule_smiles'].to_dict()
+    # Initialize results list
+    results = []
+    dir_preds_base, dir_sc_base, _ = dirnameextractor(output_dir, confs)
 
     for i, file in enumerate(files):
         file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
         rxn = reactions[i]
+        print(f'Processing {file_uni_name} for reaction {rxn}')
 
         # Define paths
-        dir_preds, dir_sc, _ = dirnameextractor(output_dir, confs)
-        dir_preds = f"{dir_preds}/{file_uni_name}"
-        dir_sc = f"{dir_sc}/{file_uni_name}/{rxn}"
+        dir_sc = f"{dir_sc_base}/{file_uni_name}/{rxn}"
         sc_preds_path = f'{dir_sc}/{file_uni_name}_{rxn}_rct_candidates_pairs_whole_sparse_split_highscored_retrieved_route.tsv'
+        rct1s_path = f'{dir_sc}/{file_uni_name}_{rxn}_rct1_candidates_selected_whole.tsv'
+        rct2s_path = f'{dir_sc}/{file_uni_name}_{rxn}_rct2_candidates_selected_whole.tsv'
         thompson_sc_path = f'{dir_sc}/ts_results_valid_route.tsv'
 
-        # Analyze Thompson sampling results
-        thompson_sc_chunk = pd.read_table(thompson_sc_path, header=0, index_col=0, chunksize=chunk_size)
-        thompson_scores = []
-        thompson_scaf_whole = []
-        thompson_prd = set()
-        for chunk in thompson_sc_chunk:
-            thompson_scores.extend(chunk['score'])
-            thompson_scaf_whole.extend(
-                MurckoScaffoldSmilesFromSmiles(chunk['SMILES'].to_numpy().ravel())
-            )
-            thompson_prd.update(chunk['SMILES'])
+        # Extract Reaction set ID
+        reaction_set_id = rxns.loc[f"{file_uni_name}_{rxn}", "Reation set ID"]
 
-        thompson_scaf_count = Counter(thompson_scaf_whole)
-        pd.DataFrame(thompson_scaf_count.most_common(), columns=['scaf', 'appearance']).to_csv(
-            f'{dir_sc}/ts_appearance.tsv', sep='\t'
-        )
-        print(f'Results saved to {dir_sc}/ts_appearance.tsv')
-
-        # Analyze SVR-PK results
-        sc_preds_chunked = pd.read_table(sc_preds_path, header=0, index_col=0, chunksize=chunk_size)
-        sc_scaf_whole = []
-        sc_preds_product = set()
-        for chunk in sc_preds_chunked:
-            sc_preds_overthres = chunk[chunk[pred_col] >= min(thompson_scores)]
-            sc_scaf_whole.extend(
-                MurckoScaffoldSmilesFromSmiles(sc_preds_overthres['Product_norxncenter'].to_numpy().ravel())
-            )
-            sc_preds_product.update(sc_preds_overthres['Product_norxncenter'])
-
+        # Initialize row data
+        row_data = {"Reaction dataset ID": reaction_set_id, "Method": "SVR-PK"}
+        sc_preds = pd.read_table(sc_preds_path, header=0, index_col=0)
+        rct1s = pd.read_table(rct1s_path, header=0, index_col=0)
+        rct1s.set_index('ID', drop=True, inplace=True)
+        rct2s = pd.read_table(rct2s_path, header=0, index_col=0)
+        rct2s.set_index('ID', drop=True, inplace=True)
+        explored_combinations = len(rct1s) * len(rct2s)
+        row_data["Explored combinations"] = f"{explored_combinations:.2e}"
+        row_data["Screened products"] = n_samples
+        row_data["Eligible products"] = sc_preds.shape[0]
+        sc_scaf_whole = MurckoScaffoldSmilesListFromSmilesList(sc_preds['Product_norxncenter'].to_numpy().ravel()).ravel().tolist()
         sc_scaf_count = Counter(sc_scaf_whole)
         pd.DataFrame(sc_scaf_count.most_common(), columns=['scaf', 'appearance']).to_csv(
             f'{dir_sc}/sc_appearance.tsv', sep='\t'
         )
+        print(f'Scaffolds appearance saved to {dir_sc}/sc_appearance.tsv')
+        row_data["Unique scaffolds"] = len(set(sc_scaf_whole))
+        row_data["Range of predicted pKi"] = f"{sc_preds['svr_tanimoto_predict'].min():.2e} - {sc_preds['svr_tanimoto_predict'].max():.2e}"
+        sc_rct_pairs = [s.split(',') for s in sc_preds.index]
+        sc_rct1 = [int(s[0]) for s in sc_rct_pairs]
+        sc_rct2 = [int(s[1]) for s in sc_rct_pairs]
+        sc_rct1s_extract = rct1s[rct1s.index.isin(sc_rct1)].copy()
+        sc_rct2s_extract = rct2s[rct2s.index.isin(sc_rct2)].copy()
+        sc_rct1s_extract['scaf'] = sc_rct1s_extract['SMILES'].apply(MurckoScaffoldSmilesFromSmiles)
+        sc_rct2s_extract['scaf'] = sc_rct2s_extract['SMILES'].apply(MurckoScaffoldSmilesFromSmiles)
+        row_data["Unique reactant1"] = len(set(sc_rct1))
+        row_data["Unique reactant1 scaffolds"] = len(set(sc_rct1s_extract['scaf']))
+        row_data["Unique reactant2"] = len(set(sc_rct2))
+        row_data["Unique reactant2 scaffolds"] = len(set(sc_rct2s_extract['scaf']))
 
-        # Print summary
-        print(f'<<<Set of reactants {file_uni_name}.{rxn}>>>')
-        print(f'--Screening by our methods--')
-        print(f'Shape (Product): {len(sc_preds_product)} (Unique scafs: {len(set(sc_scaf_whole))})')
-        print(f'--Screening by Thompson sampling--')
-        print(f'Shape (Product): {len(thompson_prd)} (Unique scafs: {len(set(thompson_scaf_whole))})')
+        # Process Thompson
+        row_data_thompson = {"Reaction dataset ID": reaction_set_id, "Method": "Thompson"}
+        thompson_sc = pd.read_table(thompson_sc_path, header=0, index_col=0)
+        row_data_thompson["Explored combinations"] = "-"
+        row_data_thompson["Screened products"] = n_samples
+        row_data_thompson["Eligible products"] = thompson_sc.shape[0]
+        ts_scaf_whole = MurckoScaffoldSmilesListFromSmilesList(thompson_sc['SMILES'].to_numpy().ravel()).ravel().tolist()
+        ts_scaf_count = Counter(ts_scaf_whole)
+        pd.DataFrame(ts_scaf_count.most_common(), columns=['scaf', 'appearance']).to_csv(
+            f'{dir_sc}/ts_appearance.tsv', sep='\t'
+        )
+        print(f'Thompson sampling scaffolds appearance saved to {dir_sc}/ts_appearance.tsv')
+        row_data_thompson["Unique scaffolds"] = len(set(ts_scaf_whole))
+        row_data_thompson["Range of predicted pKi"] = f"{thompson_sc['score'].min():.2e} - {thompson_sc['score'].max():.2e}"
+        ts_rct_pairs = [s.split('_') for s in thompson_sc.index]
+        ts_rct1 = [int(s[0]) for s in ts_rct_pairs]
+        ts_rct2 = [int(s[1]) for s in ts_rct_pairs]
+        ts_rct1s_extract = rct1s[rct1s.index.isin(ts_rct1)].copy()
+        ts_rct2s_extract = rct2s[rct2s.index.isin(ts_rct2)].copy()
+        ts_rct1s_extract['scaf'] = ts_rct1s_extract['SMILES'].apply(MurckoScaffoldSmilesFromSmiles)
+        ts_rct2s_extract['scaf'] = ts_rct2s_extract['SMILES'].apply(MurckoScaffoldSmilesFromSmiles)
+        row_data_thompson["Unique reactant1"] = len(set(ts_rct1))
+        row_data_thompson["Unique reactant1 scaffolds"] = len(set(ts_rct1s_extract['scaf']))
+        row_data_thompson["Unique reactant2"] = len(set(ts_rct2))
+        row_data_thompson["Unique reactant2 scaffolds"] = len(set(ts_rct2s_extract['scaf']))
 
-        print(f'Results saved to {dir_sc}/ts_appearance.tsv')
-        print(f'Results saved to {dir_sc}/sc_appearance.tsv')
+        # Calculate intersections
+        row_data["Intersections"] = len(set(sc_preds['Product_norxncenter']).intersection(thompson_sc['SMILES']))
+        row_data_thompson["Intersections"] = row_data["Intersections"]
 
+        # Append rows to results
+        results.append(row_data)
+        results.append(row_data_thompson)
+
+    # Create DataFrame and save as TSV
+    output_tsv = os.path.join(dir_sc_base, 'analysis_results.tsv')
+    df = pd.DataFrame(results)
+    df.to_csv(output_tsv, sep='\t', index=False)
+    print(f"Results saved to {output_tsv}")
 
 def plot_descriptor_boxplots(config_path, output_path, method='svr_tanimoto', fsize=20):
     """
