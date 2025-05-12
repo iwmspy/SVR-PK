@@ -88,7 +88,12 @@ If you want to obtain reactant pairs from your own reactant file, <code>heavy_at
 
 Thompson sampling was used as the comparison method (https://pubs.acs.org/doi/10.1021/acs.jcim.3c01790).
 
-The script was downloaded from [GitHub](https://github.com/PatWalters/TS) on 2024/6/7. Please download via GitHub, rename dirname <code>TS-main</code> to <code>TS_main_20240607</code> and save in <code>_benchmarking</code> directory.
+The script was downloaded from [GitHub](https://github.com/PatWalters/TS) on 2024/6/7. Please download via GitHub, rename dirname <code>TS-main</code> to <code>TS_main_20240607</code> and place the contents directory so that it has the following status.
+```
+SVR-PK
+|- _benchmarking
+    |- TS_main_20240607
+```
 
 The following change must be applied to reproduce our results.
 
