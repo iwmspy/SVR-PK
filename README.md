@@ -55,7 +55,7 @@ python rm_main.py -c [your_config_file].json
 
 This procedure contains below modules.
 
-* <code>generate_retrosynthesis.py</code>: For generating reactants from actual molecules
+* <code>generate_retrosynthesis.py</code>: For generating reactants from actual molecules based on the method suggested by Coley et.al. ([Original GitHub](https://github.com/connorcoley/retrosim))
 * <code>preprocess_for_retrosynthesis.py</code>: For preprocessing generated datasets
 * <code>modeling_retrosynthesis_ecfp_split.py</code>: For modeling from reactants
 
