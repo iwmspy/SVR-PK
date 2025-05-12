@@ -1,6 +1,7 @@
 # gitignore
 
 # Input and output files
+_benchmarking/
 outputs*/
 chembl31/
 emolecules/
