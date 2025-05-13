@@ -1,10 +1,37 @@
+import os
+import sys
 import numpy as np
 import pandas as pd
-import os
 import shutil
 import time
 import logging
 from typing import Optional
+
+def importstr(module_str, from_=None):
+    """
+	module_str: module to be loaded as string 
+	>>> importstr('os) -> <module 'os'>
+	"""
+    if (from_ is None) and ':' in module_str:
+        module_str, from_ = module_str.rsplit(':')
+    module = __import__(module_str)
+    for sub_str in module_str.split('.')[1:]:
+        module = getattr(module, sub_str)
+
+    if from_:
+        try:
+            return getattr(module, from_)
+        except:
+            raise ImportError(f'{module_str}.{from_}')
+    return module
+
+def run(app, *argv):
+    argv=list(argv)
+    app_cls=importstr(app)
+    sys.argv = [sys.argv[0]]
+    for arg in argv:
+        sys.argv.append(arg)
+    app_cls.main()
 
 def dfconcatinatorwithlabel(dfs : dict, label: str='label'):
     '''
@@ -59,28 +86,6 @@ def tsv_merge(tsv_list:list, merge_file:list, raw_df=False, chunksize:int=10000)
                     f.write('\t'.join(r))
                     f.write('\n')
     return
-
-class mkdir:
-    def __init__(self):
-        pass
-
-    def mk_dir(self,dir_path,overwrite=False):
-        # Check existing
-        if os.path.isdir(dir_path):
-            print(f"Directry '{dir_path}' already exist.")
-            if overwrite:
-                print(f"Overwrite option is selected. Directry will be overwritten.")
-                shutil.rmtree(dir_path)
-                os.makedirs(dir_path)
-                print(f"Directry '{dir_path}' was overwritten.")
-        else:
-            print(f"Directry '{dir_path}' not exist.")
-            os.makedirs(dir_path)
-            print(f"Directry '{dir_path}' was created.")    
-
-    def mk_dir_list(self,dirlist):
-        for dir in dirlist:
-            self.mk_dir(dir)
 
 def check_group_vals(group,thres=1):
     g = group.max()-group.min()

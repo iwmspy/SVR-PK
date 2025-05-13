@@ -112,7 +112,7 @@ def CustomDissimilarRandomSplit(df:pd.DataFrame, group_index_col:str, group_subg
             test_whole_df  = pd.concat([test_whole_df, test_whole_dissim[test_whole_dissim['is_unique']]])
     return train_df, train_whole_df, test_df, test_whole_df
 
-def CustomFragmentSpaceSplitbyFreq(df:pd.DataFrame, group_index_col:str, rct_smiles_col='smiles', test_ratio=0.4, group_subgroup_col:str=None, tol=0.05, max_iter=1000, ret_network=False):
+def CustomFragmentSpaceSplitbyFreq(df:pd.DataFrame, group_index_col:str, rct_smiles_col='smiles', test_ratio=0.4, group_subgroup_col:str=None, tol=0.05, max_iter=1000):
     assert(test_ratio>0 and test_ratio<1)
     train_df       = pd.DataFrame(columns=df.columns)
     train_whole_df = pd.DataFrame(columns=df.columns)

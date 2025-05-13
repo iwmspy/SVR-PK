@@ -9,21 +9,16 @@ sys.path.append(f'{pwd}/_benchmarking/TS_main_20240607')
 
 import pandas as pd
 import numpy as np
-from rdkit import Chem
 import time
 from time import time
-from scipy.sparse import csr_matrix,vstack
-import pickle
 import argparse
 import tempfile
-import swifter
-from joblib import Parallel, delayed, cpu_count
+from joblib import Parallel, delayed
 
-from models._kernel_and_mod import funcTanimotoSklearn
 from models.modeling import *
 from screening.screening_mod import ReactantScreening
-from utils.utility import tsv_merge, logger, MakeDirIfNotExisting, AttrJudge, timer
-from utils.chemutils import ReactionCenter, reactor, is_valid_molecule, MorganbitCalcAsVectorFromSmiles, SmilesExtractor
+from utils.utility import tsv_merge, logger, MakeDirIfNotExisting, AttrJudge, timer, run
+from utils.chemutils import is_valid_molecule, SmilesExtractor
 from utils.analysis import ValidityAndSuggestedRouteExaminator
 from _benchmarking.TS_main_20240607.ts_logger import get_logger
 
@@ -54,33 +49,6 @@ augmentation     = AttrJudge(confs, 'augmentation', False)
 downsize         = AttrJudge(confs, 'downsize_ts', None)
 precalc          = AttrJudge(confs, 'precalc', False)
 postpro          = AttrJudge(confs, 'postprocess', False)
-
-def importstr(module_str, from_=None):
-	"""
-	module_str: module to be loaded as string 
-	>>> importstr('os) -> <module 'os'>
-	"""
-	if (from_ is None) and ':' in module_str:
-		module_str, from_ = module_str.rsplit(':')
-	module = __import__(module_str)
-	for sub_str in module_str.split('.')[1:]:
-		module = getattr(module, sub_str)
-	
-	if from_:
-		try:
-			return getattr(module, from_)
-		except:
-			raise ImportError(f'{module_str}.{from_}')
-	return module
-
-
-def run(app, *argv):
-    argv=list(argv)
-    app_cls=importstr(app)
-    sys.argv = [sys.argv[0]]
-    for arg in argv:
-        sys.argv.append(arg)
-    app_cls.main()
 
 if augmentation:
     odir_pref = f'{out_dir}/reactant_combination_level{split_level}_augmented'

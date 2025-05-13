@@ -16,9 +16,6 @@ from utils.chemutils import MorganbitCalcAsVectors
 split = 10000
 cpus  = os.cpu_count()
 
-def sim_jaccard_from_sparse_list(l1:np.ndarray,l2:np.ndarray):
-    return np.intersect1d(l1,l2).shape[0] / np.union1d(l1,l2).shape[0]
-
 class neighbors:
     def __init__(self,bits_array,n_neigh=3,jobs=-1):
         self.nn = NearestNeighbors(n_neighbors=n_neigh,
@@ -44,13 +41,6 @@ class neighbors:
             sims.append(sim)
         return np.mean(np.array(sims))
     
-    def calcsims_(self,bits_array):
-        sims = []
-        for i, bits_list in enumerate(tqdm(bits_array)):
-            sim = self.calcsim(bits_list)
-            sims.append(sim)
-        return sims
-    
     def calcsims(self,bits_array_,split=10000):
         sims = []
         idxs = []
@@ -70,19 +60,6 @@ class neighbors:
             sims.extend(similars_mean)
             print(f'***Iterate {iter+1} end. Took {time()-start} seconds.***')
         return sims
-    
-class neighbors_sparse:
-    def __init__(self,train,n_neigh=3,n_jobs=-1,*keys):
-        self.train = train.astype(bool,copy=False)
-        self.n_neigh = n_neigh
-        self.n_jobs = n_jobs
-    
-    def transform(self,bits_sp):
-        self.kernel = funcJaccardSklearn(self.train,bits_sp,n_jobs=self.n_jobs)
-        top_n_indices = np.argsort(-self.kernel.T,axis=1)[:,:self.n_neigh]
-        sim_val = np.sort(self.kernel.T,axis=1)[:,::-1][:,:self.n_neigh]
-        return top_n_indices,sim_val
-
 
 class NearestNeighborSearchFromSmiles:
     def __init__(self,n_neigh=1,radius=2,bit_len=8192,n_jobs=-1,split_components=False) -> None:
@@ -106,8 +83,6 @@ class NearestNeighborSearchFromSmiles:
         self.nn.fit(self.train_bits_array)
     
     def transform(self,smiles_list=None,bits_array=None,precalc=False,ret_indices=True):
-        if not precalc:
-            self.test_smiles_list = smiles_list
         self.test_bits_array  = csr_matrix(np.array(
             MorganbitCalcAsVectors(smiles_list,self.rad,self.bl,n_jobs=self.job,split_components=self.spc))
             ) if not precalc else bits_array
@@ -115,35 +90,6 @@ class NearestNeighborSearchFromSmiles:
         inds_to_smi = np.array([[self.train_smiles_list[i] for i in ind_mod] for ind_mod in inds])
         if ret_indices: return dists, inds, inds_to_smi
         return dists, inds_to_smi
-
-
-def BulkNeighborsSimilarity(train_and_test_bits_array_list,n_neigh=3,jobs=-1):
-    '''
-    <shape of train_and_test_bits_array_list>
-        [[train, test], ....]
-        each train and test datas must be np.array
-    '''
-    bulksims = []
-    for train, test in train_and_test_bits_array_list:
-        nn = neighbors(train,n_neigh=n_neigh,jobs=jobs)
-        sims = nn.calcsims(test)
-        bulksims.append(sims)
-    bulksims = np.array(bulksims)
-    return bulksims.T.tolist()
-
-def NeighborsSimilarityForSparseMat(train_and_test_bits_array_list,n_neigh=3,n_jobs=-1):
-    '''
-    <shape of train_and_test_bits_array_list>
-        [[train, test], ....]
-        each train and test datas must be np.array
-    '''
-    bulksims = []
-    for train, test in train_and_test_bits_array_list:
-        nn = funcTanimotoSklearn(train,test,n_jobs=n_jobs)
-        sims = mean_of_top_n_elements(nn.T,n_neigh).reshape(-1)
-        bulksims.append(sims)
-    bulksims = np.array(bulksims)
-    return bulksims.T.tolist()
 
 def uniandpairs(df_bits_1:pd.DataFrame, df_bits_2:pd.DataFrame):
     uni_dict = {}
@@ -158,19 +104,6 @@ def uniandpairs(df_bits_1:pd.DataFrame, df_bits_2:pd.DataFrame):
             else:
                 raise Exception("Same index was detected. This module does not support same indexes.")
     return uni_dict, and_dict
-
-def spritvectorsims(df_train:pd.DataFrame, df_test:pd.DataFrame, col1:list, col2:list):
-    df_train_col1, df_train_col2 = df_train.loc[:,col1], df_train.loc[:,col2]
-    df_test_col1, df_test_col2 = df_test.loc[:,col1], df_test.loc[:,col2]
-    uni_1, and_1 = uniandpairs(df_test_col1, df_train_col1)
-    uni_2, and_2 = uniandpairs(df_test_col2, df_train_col2)
-    df_sims = pd.DataFrame(index=df_test.index,columns=df_train.index)
-    for test in df_sims.index:
-        for train in df_sims.columns:
-            pair = f'{test}&{train}'
-            df_sims.loc[test, train] = (and_1[pair]+and_2[pair])/(uni_1[pair]+uni_2[pair])
-    return df_sims
-
 
 if __name__=="__main__":
     import os
