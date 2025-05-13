@@ -551,6 +551,7 @@ def save_statistical_results(res_dict, output_path, eval_metric):
     """Save statistical analysis results to a TSV file."""
     res_df = pd.DataFrame(res_dict).T
     res_df.to_csv(f'{output_path}/wilcoxon_{eval_metric}_aug.tsv', sep='\t')
+    print(f"Statistical results saved to {output_path}/wilcoxon_{eval_metric}_aug.tsv")
     return res_df
 
 def analyze_best_model_appearance(confs, files, split_levels, com_dict, bas_dict, output_path):
@@ -606,6 +607,7 @@ def analyze_best_model_appearance(confs, files, split_levels, com_dict, bas_dict
     res_df = pd.DataFrame(res_dict).T
     res_df.to_csv(output_path, sep='\t')
     print(f"Results saved to {output_path}")
+    return res_df
 
 def analyze_augmentation_effect(confs, files, split_levels, prediction_levels, com_dict):
     """
@@ -753,6 +755,7 @@ def process_and_plot_correlation(config_path, output_dir='./outputs/prediction',
         fig.suptitle(f'{file_uni_name} correlation of error and kernel value', fontsize=fsize)
         fig.tight_layout(rect=[0, 0, 1, 0.98])
         fig.savefig(f'{pred_dir}/prediction_error.png')
+        print(f"Correlation plot saved to {pred_dir}/prediction_error.png")
 
         plt.clf()
         plt.close()
