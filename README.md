@@ -13,7 +13,7 @@ conda env create -f _env/requirements.yml
 conda activate svr-pk
 ```
 
-This repository contained following two repository, [retrosim](https://github.com/connorcoley/retrosim) (in <code>SVR-PK/retrosynthesis</code>) and [TS](https://github.com/PatWalters/TS) (in <code>SVR-PK/_benchmarking/Thompson</code>). Scripts that have been modified to meet our purposes have <code>_iwmspy</code> prefixed to the extension.
+This repository contains following two repositories, [retrosim](https://github.com/connorcoley/retrosim) (in <code>SVR-PK/retrosynthesis</code>) and [TS](https://github.com/PatWalters/TS) (in <code>SVR-PK/_benchmarking/Thompson</code>). Scripts that have been modified to meet our purposes have <code>_iwmspy</code> prefixed to the extension.
 
 Datasets we used can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository. Please unzip after downloading and place the contents directory so that it has the following status.
 ```
