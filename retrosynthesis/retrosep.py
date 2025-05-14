@@ -36,8 +36,8 @@ from IPython.display import display
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'retrosim'))
 
-from retrosim.utils.generate_retro_templates_iwmspy import process_an_example
-from rdchiral.main_iwmspy import rdchiralRun, rdchiralReaction, rdchiralReactants
+from generate_retro_templates_iwmspy import process_an_example
+from main_iwmspy import rdchiralRun, rdchiralReaction, rdchiralReactants
 
 def get_data_df(fpath='data_processed.csv'):
     return pd.read_csv(fpath)
