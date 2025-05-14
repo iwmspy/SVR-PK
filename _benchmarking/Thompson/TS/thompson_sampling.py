@@ -12,7 +12,7 @@ from reagent import Reagent
 from ts_logger import get_logger
 from ts_utils import read_reagents
 
-rng_ts = np.random.default_rng(seed=0)
+
 
 class ThompsonSampler:
     def __init__(self, mode="maximize", log_filename: Optional[str] = None):
@@ -64,8 +64,7 @@ class ThompsonSampler:
         exp_terms = np.exp(scores / self._warmup_std)
         probs = exp_terms / np.nansum(exp_terms)
         probs[np.isnan(probs)] = 0.0
-        # return np.random.choice(probs.shape[0], p=probs)
-        return rng_ts.choice(probs.shape[0], p=probs)
+        return np.random.choice(probs.shape[0], p=probs)
 
     def set_hide_progress(self, hide_progress: bool) -> None:
         """
@@ -157,8 +156,7 @@ class ThompsonSampler:
                             current_list[p] = DisallowTracker.To_Fill
                             # get the new disallow mask
                             disallow_mask = self._disallow_tracker.get_disallowed_selection_mask(current_list)
-                            # selection_scores = np.random.uniform(size=reagent_count_list[p])
-                            selection_scores = rng_ts.uniform(size=reagent_count_list[p])
+                            selection_scores = np.random.uniform(size=reagent_count_list[p])
                             # null out the disallowed ones
                             selection_scores[list(disallow_mask)] = np.NaN
                             # and select a random one

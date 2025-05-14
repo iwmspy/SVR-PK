@@ -283,28 +283,6 @@ def test_ml_classifier_eval():
     score = ml_cls_eval.evaluate(mol)
     print(score)
 
-class ObjectiveEvaluatorByTanimotoKernel(Evaluator):
-    """Added by iwmspy (09/06/2024)
-        A evaluation class that calculates objective values (Such as inhibitation constants)
-    """
-
-    def __init__(self, input_dict):
-        mod_path = input_dict['mod_path']
-        reaction = input_dict['reaction_metaname']
-        self.mod = pickle.load(open(mod_path,'rb'))
-        self.vg  = lambda x: self.mod._var_gen(x,'smiles',False)
-        self.svr = self.mod.ml_prd_[reaction].cv_models_['svr_tanimoto'].best_estimator_
-        self.num_evaluations = 0
-
-    @property
-    def counter(self):
-        return self.num_evaluations
-
-    def evaluate(self, mol):
-        self.num_evaluations += 1
-        mdict = {'smiles':[Chem.MolToSmiles(mol)]}
-        var   = self.vg(mdict)
-        return self.svr.predict(var)[0]
 
 if __name__ == "__main__":
     test_rocs_eval()

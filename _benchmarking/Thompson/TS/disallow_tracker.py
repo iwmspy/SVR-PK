@@ -6,7 +6,6 @@ from typing import DefaultDict, Set, Tuple
 
 import numpy as np
 
-rng_tr = np.random.default_rng(seed=0)
 
 class DisallowTracker:
     Empty = -1  # a sentinel value meaning fill this reagent spot - used in selection
@@ -76,7 +75,7 @@ class DisallowTracker:
             msg = f"DisallowTracker selected size {len(selected)} but reaction has {self.n_cycles} sites of diversity"
             raise ValueError(msg)
         for site_id, sel, max_size in zip(list(range(self.n_cycles)), selected, self._initial_reagent_counts):
-            if sel >= max_size:
+            if sel is not None and sel >= max_size:
                 raise ValueError(f"Disallowed given index {sel} for site {site_id} which has {max_size} reagents")
 
         # all ok so call the internal update
@@ -89,12 +88,10 @@ class DisallowTracker:
                              f"there are no more left to sample")
         selection_mask: list[int | None] = [self.Empty] * self.n_cycles
         selection_order: list[int] = list(range(self.n_cycles))
-        # random.shuffle(selection_order)
-        selection_order = rng_tr.permutation(selection_order).tolist()
+        random.shuffle(selection_order)
         for cycle_id in selection_order:
             selection_mask[cycle_id] = DisallowTracker.To_Fill
-            # selection_candidate_scores = np.random.uniform(size=self._initial_reagent_counts[cycle_id])
-            selection_candidate_scores = rng_tr.uniform(size=self._initial_reagent_counts[cycle_id])
+            selection_candidate_scores = np.random.uniform(size=self._initial_reagent_counts[cycle_id])
             selection_candidate_scores[list(self._disallow_mask[tuple(selection_mask)])] = np.NaN
             selection_mask[cycle_id] = np.nanargmax(selection_candidate_scores).item(0)
         self.update(selection_mask)

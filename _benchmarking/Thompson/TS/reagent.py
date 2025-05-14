@@ -1,7 +1,6 @@
 import numpy as np
 from rdkit import Chem
 
-rng_rg = np.random.default_rng(seed=0)
 
 class Reagent:
     __slots__ = [
@@ -56,8 +55,7 @@ class Reagent:
         """
         if self.current_phase != "search":
             raise ValueError(f"Must call Reagent.init() before sampling")
-        # return np.random.normal(loc=self.current_mean, scale=self.current_std)
-        return rng_rg.normal(loc=self.current_mean, scale=self.current_std)
+        return np.random.normal(loc=self.current_mean, scale=self.current_std)
 
     def init_given_prior(self, prior_mean: float, prior_std: float):
         """
