@@ -34,6 +34,7 @@ import os
 from IPython.display import display
 
 import sys
+sys.path.append(os.path.join(os.path.dirname(__file__)))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'retrosim'))
 
 from generate_retro_templates_iwmspy import process_an_example

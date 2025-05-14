@@ -13,7 +13,7 @@ from utils.utility import check_group_vals, MakeDirIfNotExisting, timer, logger,
 
 
 parser = argparse.ArgumentParser(description='Retrosynthesize actual molecules...')
-parser.add_argument('-c', '--config', default=f'{pwd}/config/example_config.json', help='Configration')
+parser.add_argument('-c', '--config', default=f'{pwd}/config/chembl_config_lv1.json', help='Configration')
 
 args = parser.parse_args()
 
