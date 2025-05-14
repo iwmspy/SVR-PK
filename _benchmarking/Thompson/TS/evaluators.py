@@ -1,10 +1,10 @@
 import os
 import warnings
 from abc import ABC, abstractmethod
-import pickle
+
+import useful_rdkit_utils as uru
 
 try:
-    import useful_rdkit_utils as uru
     from openeye import oechem
     from openeye import oeomega
     from openeye import oeshape

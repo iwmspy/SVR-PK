@@ -75,7 +75,7 @@ class DisallowTracker:
             msg = f"DisallowTracker selected size {len(selected)} but reaction has {self.n_cycles} sites of diversity"
             raise ValueError(msg)
         for site_id, sel, max_size in zip(list(range(self.n_cycles)), selected, self._initial_reagent_counts):
-            if sel is not None and sel >= max_size:
+            if sel >= max_size:
                 raise ValueError(f"Disallowed given index {sel} for site {site_id} which has {max_size} reagents")
 
         # all ok so call the internal update

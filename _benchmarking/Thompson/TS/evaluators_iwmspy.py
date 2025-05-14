@@ -77,11 +77,19 @@ print(f"Objective Value: {objective_value}")
 # Get the number of evaluations performed
 print(f"Number of Evaluations: {evaluator.counter}")
 """
-
+from abc import ABC, abstractmethod
 import pickle
 from rdkit import Chem
 
-from TS.evaluators import Evaluator
+class Evaluator(ABC):
+    @abstractmethod
+    def evaluate(self, mol):
+        pass
+
+    @property
+    @abstractmethod
+    def counter(self):
+        pass
 
 class ObjectiveEvaluatorByTanimotoKernel(Evaluator):
     """Added by iwmspy (09/06/2024)
