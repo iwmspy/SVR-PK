@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 from disallow_tracker_iwmspy import DisallowTracker
 from reagent_iwmspy import Reagent
 from ts_logger import get_logger
-from ts_utils import read_reagents
+from ts_utils_iwmspy import read_reagents
 
 rng_ts = np.random.default_rng(seed=0)
 
