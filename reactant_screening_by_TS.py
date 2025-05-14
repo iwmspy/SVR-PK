@@ -120,7 +120,7 @@ def main():
             json.dump(ts_dict,f)
 
         with timer() as t:
-            run('_benchmarking.Thompson.ts_main',
+            run('_benchmarking.Thompson.thompson',
                 f'{rs.dir_cand}/ts_envs.json')
             rs.res_dict['sampling_time'] = t.get_runtime()
         
