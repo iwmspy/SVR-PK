@@ -13,15 +13,7 @@ conda env create -f _env/requirements.yml
 conda activate svr-pk
 ```
 
-Also, you need to clone [retrosim](https://github.com/connorcoley/retrosim) and [TS](https://github.com/PatWalters/TS) from GitHub.
-```
-cd retrosynthesis
-git clone https://github.com/connorcoley/retrosim.git
-```
-```
-cd _benchmarking/Thompson
-git clone https://github.com/PatWalters/TS.git
-```
+This repository contained following two repository, [retrosim](https://github.com/connorcoley/retrosim) (in <code>SVR-PK/retrosynthesis</code>) and [TS](https://github.com/PatWalters/TS) (in <code>SVR-PK/_benchmarking/Thompson</code>). Scripts that have been modified to meet our purposes have <code>_iwmspy</code> prefixed to the extension.
 
 Datasets we used can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository. Please unzip after downloading and place the contents directory so that it has the following status.
 ```
@@ -97,68 +89,6 @@ If you want to obtain reactant pairs from your own reactant file, <code>heavy_at
 ## 3. Method for comparison
 
 Thompson sampling was used as the comparison method (https://pubs.acs.org/doi/10.1021/acs.jcim.3c01790).
-
-The script was downloaded from [GitHub](https://github.com/PatWalters/TS) on 2024/6/7. Please download via GitHub, rename dirname <code>TS-main</code> to <code>TS_main_20240607</code> and place the contents directory so that it has the following status.
-```
-SVR-PK
-|- _benchmarking
-    |- TS_main_20240607
-```
-
-The following change must be applied to reproduce our results.
-
-Addition of the evaluation function (<code>ObjectiveEvaluatorByTanimotoKernel</code> in <code>TS_main_20240607/evaluators.py</code>) was implemented.
-```
-class ObjectiveEvaluatorByTanimotoKernel(Evaluator):
-    """Added by iwmspy (09/06/2024)
-        A evaluation class that calculates objective values (Such as inhibitation constants)
-    """
-
-    def __init__(self, input_dict):
-        mod_path = input_dict['mod_path']
-        reaction = input_dict['reaction_metaname']
-        self.mod = pickle.load(open(mod_path,'rb'))
-        self.vg  = lambda x: self.mod._var_gen(x,'smiles',False)
-        self.svr = self.mod.ml_prd_[reaction].cv_models_['svr_tanimoto'].best_estimator_
-        self.num_evaluations = 0
-
-    @property
-    def counter(self):
-        return self.num_evaluations
-
-    def evaluate(self, mol):
-        self.num_evaluations += 1
-        mdict = {'smiles':[Chem.MolToSmiles(mol)]}
-        var   = self.vg(mdict)
-        return self.svr.predict(var)[0]
-```
-
-Also, random seed was set to ensure reproducibility.
-
-In <code>TS_main_20240607/disallow_tracker.py</code>,
-```
-rng_tr = np.random.default_rng(seed=0)  ## before class 'DisallowTracker'
-...
-selection_order = rng_tr.permutation(selection_order).tolist()  ## Inplace 'random.shuffle' in 'DisallowTracker.sample'
-...
-selection_candidate_scores = rng_tr.uniform(size=self._initial_reagent_counts[cycle_id])    ## Inplace 'selection_candidate_scores = np.random.uniform(size=self._initial_reagent_counts[cycle_id])' in 'DisallowTracker.sample'
-```
-
-In <code>TS_main_20240607/reagent.py</code>,
-```
-rng_rg = np.random.default_rng(seed=0)  ## before class Reagent
-...
-return rng_rg.normal(loc=self.current_mean, scale=self.current_std)  ## Inplace 'return np.random.normal(loc=self.current_mean, scale=self.current_std)' in 'Reagent.sample'
-```
-
-In <code>TS_main_20240607/thompson_sampling.py</code>,
-```
-rng_ts = np.random.default_rng(seed=0)  ## before class 'ThompsonSampler'
-...
-return rng_ts.choice(probs.shape[0], p=probs)  ## Inplace 'return np.random.choice(probs.shape[0], p=probs)' in 'ThompsonSampler._boltzmann_reweighted_pick'
-...
-selection_scores = rng_ts.uniform(size=reagent_count_list[p])   ## Inplace 'selection_scores = np.random.uniform(size=reagent_count_list[p])' in 'ThompsonSampler.warm_up'
-```
 
 The comparison method can be run by following command. 
 ```

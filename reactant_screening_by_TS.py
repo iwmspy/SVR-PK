@@ -3,9 +3,8 @@
 
 import os,json,sys
 pwd = os.path.dirname(os.path.abspath(__file__))
-# os.chdir(pwd)
 sys.path.append(pwd)
-sys.path.append(f'{pwd}/_benchmarking/TS_main_20240607')
+sys.path.append(f'{pwd}/_benchmarking/Thompson/TS')
 
 import pandas as pd
 import numpy as np
@@ -20,14 +19,14 @@ from screening.screening_mod import ReactantScreening
 from utils.utility import tsv_merge, logger, MakeDirIfNotExisting, AttrJudge, timer, run
 from utils.chemutils import is_valid_molecule, SmilesExtractor
 from utils.analysis import ValidityAndSuggestedRouteExaminator
-from _benchmarking.TS_main_20240607.ts_logger import get_logger
+from ts_logger import get_logger
 
 
 CHUNK = 100000
 rng = np.random.default_rng(seed = 0)
 
 parser = argparse.ArgumentParser(description='Collect reactants and combine them...')
-parser.add_argument('-c', '--config', default=f'{pwd}/config/example_config.json',
+parser.add_argument('-c', '--config', default=f'{pwd}/config/chembl_config_for_screening_1k.json',
     help='Configration')
 
 args = parser.parse_args()

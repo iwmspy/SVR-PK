@@ -203,7 +203,7 @@ def TransReactantByTemplate(df: pd.DataFrame, index_col, product_col, reactant_c
     for template, temp_df_ in df.groupby(template_col):
         temp_df = temp_df_.copy()
         rxn_template = rdchiralReaction(template)
-        for idx, row in temp_df.copy().iterrows():
+        for idx, row in temp_df.iterrows():
             index   = row[index_col]
             prd     = row[product_col]
             prd_raw = row['Product_raw']
@@ -237,46 +237,24 @@ def MurckoScaffoldSmilesListFromSmilesList(smiles_list: list, n_jobs: int=-1, sp
     ret = Parallel(n_jobs=n_jobs,backend='threading')(delayed(_mod_Murcko)(arr) for arr in l_split)
     return np.concatenate([x for x in ret])
 
-def SmilesExtractor(tpath,smiles_col,idx_col,opath,downsize):
-    if downsize is not None:
-        size = -1
-        with open(tpath,"r") as f:
-            for _ in f.readlines():
-                size += 1
-        if size > downsize:
-            random_dice = np.array([1] * downsize + [0] * (size - downsize))
-        else:
-            random_dice = np.array([1] * size)
-        random_dice = random_dice.astype(bool)
-        rng.shuffle(random_dice)
-        endpoint = 0
+def SmilesExtractor(tpath,smiles_col,idx_col,opath):
     df = pd.read_table(tpath,header=0,index_col=0,chunksize=100000)
     with open(opath,'w') as of:
         df_chunked = next(df)
-        if downsize is not None:
-            chsize = df_chunked.shape[0]
-            df_chunked = df_chunked[random_dice[endpoint:endpoint+chsize]]
-            endpoint += chsize
-        if not df_chunked.empty:
+        idx_list = df_chunked[idx_col].to_list()
+        smi_list = df_chunked[smiles_col].to_list()
+        joined   = [f'{smi}\t{idx}' for idx, smi in zip(idx_list,smi_list)]
+        joined.append('')
+        smi_str  = '\n'.join(joined)
+        of.write(smi_str)
+    with open(opath,'a') as of:
+        for df_chunked in df:
             idx_list = df_chunked[idx_col].to_list()
             smi_list = df_chunked[smiles_col].to_list()
             joined   = [f'{smi}\t{idx}' for idx, smi in zip(idx_list,smi_list)]
             joined.append('')
             smi_str  = '\n'.join(joined)
             of.write(smi_str)
-    with open(opath,'a') as of:
-        for df_chunked in df:
-            if downsize is not None:
-                chsize = df_chunked.shape[0]
-                df_chunked = df_chunked[random_dice[endpoint:endpoint+chsize]]
-                endpoint += chsize
-            if not df_chunked.empty:
-                idx_list = df_chunked[idx_col].to_list()
-                smi_list = df_chunked[smiles_col].to_list()
-                joined   = [f'{smi}\t{idx}' for idx, smi in zip(idx_list,smi_list)]
-                joined.append('')
-                smi_str  = '\n'.join(joined)
-                of.write(smi_str)
 
 if __name__=='__main__':
     print(1)
