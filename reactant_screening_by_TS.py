@@ -3,36 +3,30 @@
 
 import os,json,sys
 pwd = os.path.dirname(os.path.abspath(__file__))
-# os.chdir(pwd)
 sys.path.append(pwd)
-sys.path.append(f'{pwd}/_benchmarking/TS_main_20240607')
+sys.path.append(f'{pwd}/_benchmarking/Thompson/TS')
 
 import pandas as pd
 import numpy as np
-from rdkit import Chem
 import time
 from time import time
-from scipy.sparse import csr_matrix,vstack
-import pickle
 import argparse
 import tempfile
-import swifter
-from joblib import Parallel, delayed, cpu_count
+from joblib import Parallel, delayed
 
-from models._kernel_and_mod import funcTanimotoSklearn
 from models.modeling import *
 from screening.screening_mod import ReactantScreening
-from utils.utility import tsv_merge, logger, MakeDirIfNotExisting, AttrJudge, timer
-from utils.chemutils import ReactionCenter, reactor, is_valid_molecule, MorganbitCalcAsVectorFromSmiles, SmilesExtractor
+from utils.utility import tsv_merge, logger, MakeDirIfNotExisting, AttrJudge, timer, run
+from utils.chemutils import is_valid_molecule, SmilesExtractor
 from utils.analysis import ValidityAndSuggestedRouteExaminator
-from _benchmarking.TS_main_20240607.ts_logger import get_logger
+from ts_logger import get_logger
 
 
 CHUNK = 100000
 rng = np.random.default_rng(seed = 0)
 
 parser = argparse.ArgumentParser(description='Collect reactants and combine them...')
-parser.add_argument('-c', '--config', default=f'{pwd}/config/example_config.json',
+parser.add_argument('-c', '--config', default=f'{pwd}/config/chembl_config_for_screening_1k.json',
     help='Configration')
 
 args = parser.parse_args()
@@ -54,55 +48,6 @@ augmentation     = AttrJudge(confs, 'augmentation', False)
 downsize         = AttrJudge(confs, 'downsize_ts', None)
 precalc          = AttrJudge(confs, 'precalc', False)
 postpro          = AttrJudge(confs, 'postprocess', False)
-
-def importstr(module_str, from_=None):
-	"""
-	module_str: module to be loaded as string 
-	>>> importstr('os) -> <module 'os'>
-	"""
-	if (from_ is None) and ':' in module_str:
-		module_str, from_ = module_str.rsplit(':')
-	module = __import__(module_str)
-	for sub_str in module_str.split('.')[1:]:
-		module = getattr(module, sub_str)
-	
-	if from_:
-		try:
-			return getattr(module, from_)
-		except:
-			raise ImportError(f'{module_str}.{from_}')
-	return module
-
-
-def run(app, *argv):
-    argv=list(argv)
-    app_cls=importstr(app)
-    sys.argv = [sys.argv[0]]
-    for arg in argv:
-        sys.argv.append(arg)
-    app_cls.main()
-
-
-def SmilesExtractor(tpath,smiles_col,idx_col,opath):
-    df = pd.read_table(tpath,header=0,index_col=0,chunksize=CHUNK)
-    with open(opath,'w') as of:
-        df_chunked = next(df)
-        if not df_chunked.empty:
-            idx_list = df_chunked[idx_col].to_list()
-            smi_list = df_chunked[smiles_col].to_list()
-            joined   = [f'{smi}\t{idx}' for idx, smi in zip(idx_list,smi_list)]
-            joined.append('')
-            smi_str  = '\n'.join(joined)
-            of.write(smi_str)
-    with open(opath,'a') as of:
-        for df_chunked in df:
-            if not df_chunked.empty:
-                idx_list = df_chunked[idx_col].to_list()
-                smi_list = df_chunked[smiles_col].to_list()
-                joined   = [f'{smi}\t{idx}' for idx, smi in zip(idx_list,smi_list)]
-                joined.append('')
-                smi_str  = '\n'.join(joined)
-                of.write(smi_str)
 
 if augmentation:
     odir_pref = f'{out_dir}/reactant_combination_level{split_level}_augmented'
@@ -174,7 +119,7 @@ def main():
             json.dump(ts_dict,f)
 
         with timer() as t:
-            run('_benchmarking.TS_main_20240607.ts_main',
+            run('_benchmarking.Thompson.thompson',
                 f'{rs.dir_cand}/ts_envs.json')
             rs.res_dict['sampling_time'] = t.get_runtime()
         

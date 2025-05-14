@@ -5,9 +5,8 @@
     4. Calculate kernel val between candpairs and trainings -> Filter by val >= 0.6
 '''
 
-import os,json,sys
+import os
 import pickle
-import argparse
 import tempfile
 
 import pandas as pd
@@ -15,25 +14,18 @@ import numpy as np
 from rdkit import Chem
 from time import time
 from tqdm import tqdm
-from scipy.sparse import csr_matrix,vstack
-import swifter
+from scipy.sparse import csr_matrix
 from joblib import Parallel, delayed, cpu_count
 
 from models._kernel_and_mod import funcTanimotoSklearn
 from models.modeling import *
-from utils.utility import mean_of_top_n_elements, tsv_merge, mkdir, timer, AttrJudge, logger, MakeDirIfNotExisting, ArraySplitByN
-from utils.chemutils import ReactionCenter, reactor, is_valid_molecule, MorganbitCalcAsVectorFromSmiles,SmilesExtractor
+from utils.utility import tsv_merge, timer, logger, MakeDirIfNotExisting, ArraySplitByN
+from utils.chemutils import ReactionCenter, reactor
 from utils.analysis import ValidityAndSuggestedRouteExaminator
 
 # Define constants
-CHUNK      = 100000
-CHUNK_RCT1 = 1000
-CHUNK_RCT2 = 100
-MAX_COMBS  = 1000000
-R_OF_SCORE = 75
-# n_samples  = 1000000
-# n_samples_per_rct = int(np.sqrt(n_samples))
-SEED = 0
+CHUNK = 100000
+SEED  = 0
 
 rng = np.random.default_rng(seed = SEED)
 
@@ -58,7 +50,6 @@ def _mod_svrpred(kmat1, kmat2, coeff, bias, worker_id, thres_score=None, logger=
         combs.append(combs_tmp.T)
     return combs
 
-
 def _mod_svrpred_extract(kmat1, kmat2, coeff, bias, worker_id, thres_score=None, save_name=None, logger=None):
     combs = _mod_svrpred(kmat1, kmat2, coeff, bias, worker_id, thres_score, logger)
     if len(combs):
@@ -70,22 +61,6 @@ def _mod_svrpred_extract(kmat1, kmat2, coeff, bias, worker_id, thres_score=None,
     else:
         return None
 
-
-def _mod_svrpred_analysis(kmat1, kmat2, coeff, bias, worker_id, ext_ratios_dict=None):
-    d_shape = {}
-    min_thres = min([d['threshold'] for d in ext_ratios_dict.values()]) if isinstance(ext_ratios_dict, dict) and not(None in ext_ratios_dict) \
-        else None
-    combs = _mod_svrpred(kmat1, kmat2, coeff, bias, worker_id, min_thres)
-    combs_array = np.concatenate(combs,axis=0)
-    score_ravel = combs_array[:, -1].ravel()
-    for ratio, d in ext_ratios_dict.items():
-        if ratio is not None:
-            d_shape[ratio] = len(np.where(score_ravel >= d['threshold'])[0])
-        else:
-            d_shape[ratio] = len(score_ravel)
-    return d_shape
-
-
 def EachArrayLengthCalclator(arrays):
         mcumurateshape = 0
         mcumurateshape_array = np.zeros((len(arrays)+1),dtype=int)
@@ -93,7 +68,6 @@ def EachArrayLengthCalclator(arrays):
             mcumurateshape += mat.shape[0]
             mcumurateshape_array[i+1] = mcumurateshape
         return mcumurateshape_array
-
 
 def extract_n_samples_by_threshold(tsv_path: str, retrieve_size=1000000):
     samples = np.loadtxt(tsv_path,delimiter='\t',dtype=np.float32)
@@ -107,7 +81,6 @@ def extract_n_samples_by_threshold(tsv_path: str, retrieve_size=1000000):
     min_indice   = greater_equal_indices[0][min_distance]
     samples_ret  = samples[samples[:,-1] >= candi_splits[min_indice]]
     return candi_splits[min_indice], samples_ret[:,:-1], samples_ret[:,-1]
-
 
 def NeatCombinationExtractor(array_1: np.array, array_2: np.array, n_samples: int):
     n_samples_per_rct = int(np.sqrt(n_samples))
@@ -132,20 +105,6 @@ def NeatCombinationExtractor(array_1: np.array, array_2: np.array, n_samples: in
             if nfr2 > n_samples_per_rct else array_2.copy()
     
     return array_1_sample, array_2_sample
-
-
-def GetLogger(path):
-    # Retrieve logging module
-    lgr = logger(filename=path)
-    return lgr
-
-def close_logger(logger):
-    """Close all handlers associated with the logger."""
-    handlers = logger.handlers[:]
-    for handler in handlers:
-        handler.close()
-        logger.removeHandler(handler)
-
 
 def ShapeConcatenator(ret: list, shape: np.array, read_f=False):
     ret_with_shape = list()
@@ -590,65 +549,3 @@ class ReactantScreening:
         tim = time() - strt_time
         self.lgr(f'Execution time: {tim} sec.')
         self.res_dict['evaluation_time'] = tim
-    
-    def SVRpredAnalysis(self, ext_ratios=[5e-5,1e-5,5e-6,1e-6], njobs=-1):
-        """Screening by ProductTanimotoKernel
-            <Input>
-             njobs: int
-                Paralyzation
-            <Return>
-             None, results are saved in specific named files
-        """
-        ext_ratios_dict = {
-            ext: {'indice': None,'threshold': None, 'shape': 0}
-            for ext in ext_ratios
-        }
-        # settings
-        njobs = cpu_count() -1 if njobs < 0 else njobs
-        kmat1, kmat2 = self.LoadKernelVals() # loading all data
-        nfr1  = len(kmat1)
-        nfr2  = len(kmat2)
-        self.lgr(f'Screening {nfr1*nfr2} combinations.')
-        
-        kmat1_sample, kmat2_sample = NeatCombinationExtractor(kmat1, kmat2, self.args['n_samples'])
-        kmat2s_sample = np.array_split(kmat2_sample, njobs)
-        mcumurateshape_array = EachArrayLengthCalclator(kmat2s_sample)
-        ret = Parallel(n_jobs=njobs, backend='threading')(
-            [delayed(_mod_svrpred_extract)(kmat1_sample, submat2, self.coef_, self.intercept_, idx) 
-            for idx,submat2 in enumerate(kmat2s_sample)])
-        ret_with_shape = ShapeConcatenator(ret,mcumurateshape_array)
-        combs_sample_array = np.concatenate(ret_with_shape,axis=0)
-        for ratio in ext_ratios_dict.keys():
-            if ratio is not None:
-                ext_ratios_dict[ratio]['indice']    = int((kmat1_sample.shape[0] * kmat2_sample.shape[0]) * ratio)
-                ext_ratios_dict[ratio]['threshold'] = sorted(combs_sample_array[:,-1].ravel())[-ext_ratios_dict[ratio]['indice']] \
-                    if len(combs_sample_array) > ext_ratios_dict[ratio]['indice'] else min(combs_sample_array[:,-1].ravel())
-                self.lgr(f'Threshould score (ratio={ratio}): {ext_ratios_dict[ratio]["threshold"]}')
-
-        strt_time = time()
-
-        if nfr1 * nfr2 > self.args['n_samples']:
-            kmat2s = np.array_split(kmat2, njobs)
-            mcumurateshape_array = EachArrayLengthCalclator(kmat2s)
-
-            ret = Parallel(n_jobs=njobs, backend='threading')(
-                [delayed(_mod_svrpred_analysis)(kmat1, submat2, self.coef_, self.intercept_, idx, ext_ratios_dict) 
-                for idx,submat2 in enumerate(kmat2s)])
-            for r in ret:
-                for ratio, shape in r.items():
-                    ext_ratios_dict[ratio]['shape'] = ext_ratios_dict[ratio]['shape'] + shape
-            self.lgr(f'Unpacking solutions...')
-        else:
-            for ratio in ext_ratios_dict.keys():
-                if ratio is not None:
-                    ext_ratios_dict[ratio]['shape'] = len(np.where(combs_sample_array[:,-1].ravel() >= ext_ratios_dict[ratio]['threshold'])[0])
-                else:
-                    ext_ratios_dict[ratio]['shape'] = len(combs_sample_array[:,-1].ravel())
-        for ratio, d in ext_ratios_dict.items():
-            self.lgr(f'Total number of combinations (ratio={ratio}): {d["shape"]}')
-        self.lgr(f'Execution time: {time() - strt_time} sec.')
-
-    def close_log(self):
-        if self.logger is not None:
-            close_logger(self.logger)
-

@@ -13,8 +13,27 @@ hatom_counter   = lambda w : Chem.MolFromSmiles(w).GetNumHeavyAtoms()
 # Split per fragments
 cpd_splitter    = lambda x : pd.Series(x.split('.'))
 
-
 def CustomCorrelationChecker(df: pd.DataFrame, index_col, thres: float=0.6):
+    """
+    Filters a DataFrame by removing rows based on correlation of unique values 
+    in a specified column grouped by a reaction column.
+    This function identifies groups of rows in the DataFrame that share a 
+    common value in the 'Rep_reaction' column. It then calculates the 
+    correlation of unique values in the specified `index_col` between these 
+    groups. If the correlation between two groups exceeds the given threshold, 
+    the group with fewer unique values is marked for removal. The function 
+    returns a filtered DataFrame containing only the remaining groups.
+    Args:
+        df (pd.DataFrame): The input DataFrame containing the data to be filtered.
+        index_col (str): The name of the column whose unique values are used 
+                         to calculate correlation between groups.
+        thres (float, optional): The correlation threshold above which groups 
+                                 are considered too similar. Defaults to 0.6.
+    Returns:
+        pd.DataFrame: A filtered DataFrame containing only the rows from groups 
+                      that were not marked for removal.
+    """
+
     d = {
         rct : set(df[df['Rep_reaction']==rct][index_col].to_list())
         for rct in set(df['Rep_reaction'])
@@ -36,7 +55,6 @@ def CustomCorrelationChecker(df: pd.DataFrame, index_col, thres: float=0.6):
     df_remain = df[df['Rep_reaction'].isin(remain)].copy()
     return df_remain
 
-
 def DataPreprocessing(df, index_col, template_col, product_col, reactants_col, AKA_name_col):
     df_rxncenter_extracted = UniqueReactionCenterExtractor(df.copy(),template_col)
     ResetIsotopesSmiles(df_rxncenter_extracted,product_col)
@@ -46,7 +64,6 @@ def DataPreprocessing(df, index_col, template_col, product_col, reactants_col, A
     df_topn_extracted = TopNrxnExtractor(df_hatoms_checked,index_col)
     df_highcorr_deled = CustomCorrelationChecker(df_topn_extracted,index_col)
     return df_highcorr_deled
-
 
 def GroupByAKAReactionName(df: pd.DataFrame, template_col: str, AKA_name_col: str):
     reactions = []
@@ -69,18 +86,15 @@ def GroupByAKAReactionName(df: pd.DataFrame, template_col: str, AKA_name_col: st
     assert df_rxn_integrated.drop_duplicates(template_col).shape[0] == df_rxn_integrated.drop_duplicates('Rep_reaction').shape[0]
     return df_rxn_integrated
 
-
 def HeavyAtomsCounterForAllComponents(df: pd.DataFrame, product_col: str='Product', reactants_col: str='Precursors'):
     df[f'{product_col}_num_of_hatoms'] = df[product_col].apply(hatom_counter)
     df[[f'{reactants_col}1',f'{reactants_col}2']] = df[reactants_col].apply(cpd_splitter)
     df[f'{reactants_col}1_num_of_hatoms'] = df[f'{reactants_col}1'].apply(hatom_counter)
     df[f'{reactants_col}2_num_of_hatoms'] = df[f'{reactants_col}2'].apply(hatom_counter)
 
-
 def IsSatisfyingDataNum(df: pd.DataFrame, unique_column: str='template'):
     num_counts = pd.DataFrame(df.value_counts(unique_column))
     return num_counts[num_counts['count']>=MIN_NUM_OF_PRD].reset_index()
-
 
 def PrecursorsHeavyAtomsChecker(df: pd.DataFrame, reactants_col):
     frs_num_of_hatoms = pd.concat([
@@ -108,10 +122,8 @@ def PrecursorsHeavyAtomsChecker(df: pd.DataFrame, reactants_col):
             ].copy()
     return df
 
-
 def ResetIsotopesSmiles(df: pd.DataFrame, product_col: str='Product'):
     df[f'{product_col}_raw'] = df[product_col].apply(reset_isotopes)
-
 
 def Summarizer(data,index_col):
     columns_for_summary = ['template','represent_reaction',
@@ -143,14 +155,12 @@ def Summarizer(data,index_col):
     
     return summarized_df
 
-
 def TopNrxnExtractor(df,index_col):
     df_num = df.drop_duplicates(
         ['Rep_reaction',index_col])['Rep_reaction'].value_counts()
     reactions_over_thres = df_num[df_num >= MIN_NUM_OF_PRD].head(10).index.to_list()
     df_extracted = df[df['Rep_reaction'].isin(reactions_over_thres)].copy()
     return df_extracted
-
 
 def UniqueReactionCenterExtractor(df: pd.DataFrame, template_col: str='template'):
     num_counts_thres = IsSatisfyingDataNum(df, template_col)

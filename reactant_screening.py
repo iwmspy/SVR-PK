@@ -22,11 +22,7 @@ from utils.utility import AttrJudge, logger, MakeDirIfNotExisting
 
 # Define constants
 CHUNK      = 100000
-CHUNK_RCT1 = 1000
-CHUNK_RCT2 = 100
-R_OF_SCORE = 75
 N_SAMPLES  = 1000000
-N_SAMPLES_PER_RCT = int(np.sqrt(N_SAMPLES))
 SEED = 0
 
 parser = argparse.ArgumentParser(description='Collect reactants and combine them...')
@@ -54,7 +50,6 @@ n_jobs           = AttrJudge(confs, 'n_jobs', os.cpu_count())
 augmentation     = AttrJudge(confs, 'augmentation', False)
 downsize         = AttrJudge(confs, 'downsize_sc', None)
 precalc          = AttrJudge(confs, 'precalc', False)
-postpro          = AttrJudge(confs, 'postprocess', False)
 
 if augmentation:
     odir_pref = f'{out_dir}/reactant_combination_level{split_level}_augmented'
@@ -94,7 +89,6 @@ def main():
                 rs.SubmatchAndMapping(cands, arg_rct1, arg_rct2)
             rs.CandsKernelGenerator()
             rs.SVRpredCombinations(ext_ratio=ext_ratio,njobs=n_jobs)
-            # rs.SVRpredAnalysis(njobs=os.cpu_count())
             rs.ResultsExtractor(njobs=n_jobs)
             rs.PredictFromProducts(njobs=n_jobs,retrieve_size=n_samples)
             rs.RouteExaminator(retrieved=True)

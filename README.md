@@ -13,7 +13,15 @@ conda env create -f _env/requirements.yml
 conda activate svr-pk
 ```
 
-Datasets we used can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository.
+This repository contained following two repository, [retrosim](https://github.com/connorcoley/retrosim) (in <code>SVR-PK/retrosynthesis</code>) and [TS](https://github.com/PatWalters/TS) (in <code>SVR-PK/_benchmarking/Thompson</code>). Scripts that have been modified to meet our purposes have <code>_iwmspy</code> prefixed to the extension.
+
+Datasets we used can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository. Please unzip after downloading and place the contents directory so that it has the following status.
+```
+SVR-PK
+|- chembl31 : For model construction
+|- emolecules : For screening
+```
+
 
 ## 0. Configuration
 You can use your original datasets by creating config file and run below code with <code>-c [your config file].json</code> option. Please refer json files stored in <code>config</code> to create your own config file. 
@@ -70,12 +78,6 @@ Reactant screening procedure.
 python reactant_screening.py -c [your_config_file].json
 ```
 
-This script will run Thompson sampling used as a compared method. 
-
-```
-python reactant_screening_TS.py -c [your_config_file].json
-```
-
 Our results can be replicated by this json file.
 
 * <code>chembl_config_for_screening_1k.json</code>: Reactant pair screening (sample 1k reactants for each, just for rate measurement)
@@ -84,15 +86,27 @@ Our results can be replicated by this json file.
 
 If you want to obtain reactant pairs from your own reactant file, <code>heavy_atom_count</code> (number of heavy atoms of compound, easily calculated by RDKit) should be contained in your own reactant file.
 
+## 3. Method for comparison
+
+Thompson sampling was used as the comparison method (https://pubs.acs.org/doi/10.1021/acs.jcim.3c01790).
+
+The comparison method can be run by following command. 
+```
+python reactant_screening_TS.py -c [your_config_file].json
+```
+
+You can use the same <code>json</code> file used in our method for configuration.
+
 ## Analyze results
 Results will be stored <code>outputs</code> directory.
 
 ```
-outputs
-|- datasets : retrosynthesized datasets
-|- preprocessed : preprocessed datasets
-|- prediction_level{n}[_augmented] : results of model construction
-|- reactant_combination_level{n}[\_augmented]\_{m}[\_rc{l}] : proposed reactant pairs
+SVR-PK
+|- outputs
+    |- datasets : retrosynthesized datasets
+    |- preprocessed : preprocessed datasets
+    |- prediction_level{n}[_augmented] : results of model construction
+    |- reactant_combination_level{n}[\_augmented]\_{m}[\_rc{l}] : proposed reactant pairs
 ```
 
 Results you obtained can be analyzed by using <code>analysis.ipynb</code>.

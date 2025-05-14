@@ -22,32 +22,28 @@
 '''
 
 from __future__ import print_function
-from rdkit.Chem.Draw import IPythonConsole, ReactionToImage, MolToImage, MolsToGridImage
+from rdkit.Chem.Draw import MolToImage
 import rdkit.Chem as Chem
 import rdkit.Chem.AllChem as AllChem
 from rdkit import DataStructs
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
-import json
-import sys
 import time
-import re
 import os
-import matplotlib.pyplot as plt
-from IPython.display import SVG, display, clear_output
-from collections import defaultdict
-from retrosynthesis.retrosyn.generate_retro_templates import process_an_example
-from retrosynthesis.retrosyn.main import rdchiralRun, rdchiralReaction, rdchiralReactants
+from IPython.display import display
 
-if __name__=='__main__':
-    import os
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__)))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'retrosim'))
+
+from retrosim.utils.generate_retro_templates_iwmspy import process_an_example
+from rdchiral.main_iwmspy import rdchiralRun, rdchiralReaction, rdchiralReactants
 
 def get_data_df(fpath='data_processed.csv'):
     return pd.read_csv(fpath)
 
-data_ = get_data_df(os.path.join(os.path.dirname(__file__),'data_processed.csv'))
+data_ = get_data_df(os.path.join(os.path.dirname(__file__),'retrosim','retrosim','data','data_processed.csv'))
 
 # curate template
 for idx in data_.index:
@@ -58,15 +54,12 @@ for idx in data_.index:
 data = data_[data_['keep']].copy()
 
 similarity_metric = DataStructs.BulkTanimotoSimilarity # BulkDiceSimilarity or BulkTanimotoSimilarity
-similarity_label = 'Tanimoto'
 getfp = lambda smi: AllChem.GetMorganFingerprint(Chem.MolFromSmiles(smi), 2, useFeatures=True)
-getfp_label = 'Morgan2Feat'
 
 all_fps = []
 for smi in tqdm(data['prod_smiles']):
     all_fps.append(getfp(smi))
 data['prod_fp'] = all_fps
-prev_FP = getfp
 
 v = False
 draw = False
@@ -76,8 +69,6 @@ jx_cache = {}
 def do_one(prod_smiles, draw=draw, debug=debug, v=v, rc_cumurate=True,
            ringinfo=True, num_products=1, num_reactants=2, strict_template=True):
     global jx_cache
-    
-    rec_for_printing = ''
     
     ex = Chem.MolFromSmiles(prod_smiles)
     rct = rdchiralReactants(prod_smiles)
@@ -111,8 +102,6 @@ def do_one(prod_smiles, draw=draw, debug=debug, v=v, rc_cumurate=True,
 
         jx = data.index[j]
 
-        rec_for_printing += '\nPrecedent sim {}, rxn_smiles {}\n'.format(
-            sims[j], data['rxn_smiles'][jx])
         if jx in jx_cache:
             (template, rcts_ref_fp) = jx_cache[jx]
         else:
@@ -147,8 +136,6 @@ def do_one(prod_smiles, draw=draw, debug=debug, v=v, rc_cumurate=True,
                                    data.loc[jx,'class'], data.loc[jx,'prod_smiles'], 
                                    sims[j], data.loc[jx,'rxn_smiles'], 
                                    precursors_sim, overall_sim]
-            if draw:
-                rec_for_printing += 'prec sim {} smiles {}\n'.format(precursors_sim, precursors_mapped)
             if precursors_mapped in probs:
                 if overall_sim > probs[precursors_mapped]:
                     probs[precursors_mapped] = overall_sim
