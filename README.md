@@ -13,6 +13,16 @@ conda env create -f _env/requirements.yml
 conda activate svr-pk
 ```
 
+Also, you need to clone [retrosim](https://github.com/connorcoley/retrosim) and [TS](https://github.com/PatWalters/TS) from GitHub.
+```
+cd retrosynthesis
+git clone https://github.com/connorcoley/retrosim.git
+```
+```
+cd _benchmarking/Thompson
+git clone https://github.com/PatWalters/TS.git
+```
+
 Datasets we used can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository. Please unzip after downloading and place the contents directory so that it has the following status.
 ```
 SVR-PK
@@ -55,7 +65,7 @@ python rm_main.py -c [your_config_file].json
 
 This procedure contains below modules.
 
-* <code>generate_retrosynthesis.py</code>: For generating reactants from actual molecules based on the method suggested by Coley et.al. ([Original GitHub](https://github.com/connorcoley/retrosim))
+* <code>generate_retrosynthesis.py</code>: For generating reactants from actual molecules
 * <code>preprocess_for_retrosynthesis.py</code>: For preprocessing generated datasets
 * <code>modeling_retrosynthesis_ecfp_split.py</code>: For modeling from reactants
 
