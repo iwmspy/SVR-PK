@@ -32,13 +32,17 @@ from tqdm import tqdm
 import time
 import os
 from IPython.display import display
-from retrosynthesis.retrosyn.generate_retro_templates import process_an_example
-from retrosynthesis.retrosyn.main import rdchiralRun, rdchiralReaction, rdchiralReactants
+
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), 'retrosim'))
+
+from retrosim.utils.generate_retro_templates_iwmspy import process_an_example
+from rdchiral.main_iwmspy import rdchiralRun, rdchiralReaction, rdchiralReactants
 
 def get_data_df(fpath='data_processed.csv'):
     return pd.read_csv(fpath)
 
-data_ = get_data_df(os.path.join(os.path.dirname(__file__),'retrosyn','data_processed.csv'))
+data_ = get_data_df(os.path.join(os.path.dirname(__file__),'retrosim','retrosim','data','data_processed.csv'))
 
 # curate template
 for idx in data_.index:

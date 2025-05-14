@@ -22,10 +22,51 @@ Contributions from the original script:
 - The handling of chirality and isotopic mapping is adapted from the original script.
 
 Differences from the original script:
-- The original script does not include the check for chiral centers in the reaction center.
-- The original script does not skip subsequent processes if a chiral center is found in the reaction center.
-- The handling of the 'ReactionCenter' property and the 'fr' property for atoms is an addition in this script.
-- The script has been adapted to work within the retrosynthesis tool framework.
+1. **Chiral Center Detection**:
+   - In `main_iwmspy.py`, additional checks are implemented to detect chiral centers in the reaction center.
+   - If a chiral center is detected, the process is skipped, and a warning is logged.
+   - This is achieved using the `is_stereo` function and assertions in `_MolMapping` and `rdchiralRun`.
+
+2. **Fragment Handling**:
+   - `main_iwmspy.py` introduces logic to handle molecular fragments (`fr` property) during the reaction process.
+   - Each atom in a fragment is assigned a `fr` property to track its origin.
+   - Fragments with conflicting or duplicate `fr` values are skipped.
+
+3. **Isotopic Mapping Enhancements**:
+   - The `_MolMapping` function in `main_iwmspy.py` includes additional logic for handling isotopic mapping:
+     - Atoms with the `ReactionCenter` property are assigned isotopes.
+     - Unmapped atoms are assigned isotopes with a specific range (`iso_num_unmapped`).
+     - The `rc_cumurate` flag is used to increment isotope numbers for reaction center atoms.
+
+4. **Strict Template Matching**:
+   - `main_iwmspy.py` introduces a `strict_template` flag in `rdchiralRun` to enforce strict matching of the number of reactants and products in the reaction SMARTS.
+
+5. **Additional Flags and Parameters**:
+   - `main_iwmspy.py` adds several new parameters to functions:
+     - `rc_cumurate`: Controls whether isotope numbers for reaction center atoms are incremented.
+     - `invalid_chiral`: Ensures that no chiral atoms are present in the reaction center.
+
+6. **Error Handling**:
+   - Enhanced error handling is implemented in `_MolMapping` and `rdchiralRun` to gracefully handle exceptions and log errors.
+
+7. **Output Format**:
+   - The output of `rdchiralRun` in `main_iwmspy.py` includes additional information:
+     - Reactant SMILES with isotopes.
+     - Unmapped product SMILES.
+     - Final product SMILES.
+
+8. **Utility Functions**:
+   - New utility functions are introduced in `main_iwmspy.py`:
+     - `is_stereo`: Checks if an atom or bond has stereochemistry.
+     - `is_cpds_exactly_number`: Validates the number of compounds in a reaction.
+
+9. **Code Structure**:
+   - `main_iwmspy.py` includes modularized functions (`reactantsMapping`, `productMapping`) for better readability and reusability.
+   - These functions wrap `_MolMapping` with specific parameters for reactants and products.
+
+10. **Backward Compatibility**:
+    - While `main_iwmspy.py` builds upon the logic of `main.py`, it introduces changes that may not be backward-compatible due to stricter checks and additional parameters.
+
         
 '''
 
@@ -36,13 +77,11 @@ import os
 import copy
 import rdkit.Chem as Chem
 import rdkit.Chem.AllChem as AllChem
-from rdkit.Chem.rdchem import ChiralType,BondType, BondDir, BondStereo
-from itertools import combinations
+from rdkit.Chem.rdchem import ChiralType,BondStereo
 
-from retrosynthesis.retrosyn.rdchiral.utils import vprint, iterable
-from retrosynthesis.retrosyn.rdchiral.initialization import rdchiralReaction, rdchiralReactants
-from retrosynthesis.retrosyn.rdchiral.chiral import template_atom_could_have_been_tetra, copy_chirality, atom_chirality_matches
-from retrosynthesis.retrosyn.rdchiral.clean import canonicalize_outcome_smiles, combine_enantiomers_into_racemic
+from rdchiral.utils import vprint
+from rdchiral.initialization import rdchiralReaction, rdchiralReactants
+from rdchiral.chiral import template_atom_could_have_been_tetra, copy_chirality, atom_chirality_matches
 
 def is_stereo(atom, bond=False):
     if atom.GetChiralTag()!=ChiralType.CHI_UNSPECIFIED:
