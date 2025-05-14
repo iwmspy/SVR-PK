@@ -58,7 +58,7 @@ def read_input(json_filename: str) -> dict:
     input_data = None
     with open(json_filename, 'r') as ifs:
         input_data = json.load(ifs)
-        module = importlib.import_module("evaluators")
+        module = importlib.import_module("evaluators_iwmspy")
         evaluator_class_name = input_data["evaluator_class_name"]
         class_ = getattr(module, evaluator_class_name)
         evaluator_arg = input_data["evaluator_arg"]
