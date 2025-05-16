@@ -1,6 +1,6 @@
 ## Modeling by splitted fingerprints
 
-import os,json,sys
+import os,json,sys,re
 pwd = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(pwd)
 import traceback
@@ -44,7 +44,7 @@ def main():
     if augmentation:
         dir_pred_wrap = f'{dir_pred_wrap}_augmented'
     MakeDirIfNotExisting(dir_pred_wrap)
-    lgr = logger(filename=f'{out_dir}/logs/prediction_molclr_log.txt')
+    lgr = logger(filename=f'{out_dir}/logs/prediction_level{split_level}_molclr_log.txt')
     lgr.write(f'Start {__file__}')
     lgr.write(f'Files : ---')
     for file in files:
@@ -91,6 +91,9 @@ def main():
 
                 with TemporaryDirectory(dir=dir_pred_wrap) as tmpdir:
                     for name, group in final_data.groupby('Rep_reaction'):
+                        if group[group['split']=='test'].empty:
+                            continue
+
                         name_list.append(name)
 
                         group = group.rename(columns={objective_col: 'obj'})
@@ -174,7 +177,20 @@ def main():
                 lgr.write(f'End prediction. Took {str(t.get_runtime())} sec.')
         
         except Exception as e:
-            lgr.write(e)
+            error_class = type(e)
+            error_description = str(e)
+            err_msg = '%s: %s' % (error_class, error_description)
+            lgr.write(err_msg)
+            tb = traceback.extract_tb(sys.exc_info()[2])
+            trace = traceback.format_list(tb)
+            lgr.write('---- traceback ----')
+            for line in trace:
+                if '~^~' in line:
+                    lgr.write(line.rstrip())
+                else:
+                    text = re.sub(r'\n\s*', ' ', line.rstrip())
+                    lgr.write(text)
+            lgr.write('-------------------')
             lgr.write('Modeling skip!')
 
 if __name__=='__main__': 

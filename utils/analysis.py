@@ -1,4 +1,5 @@
 from collections import Counter
+from copy import deepcopy
 import json
 import os
 from tempfile import TemporaryDirectory
@@ -381,6 +382,7 @@ def plot_results(res_dfs, split_levels, output_path):
     
     for i, a in enumerate(rax):
         for j, ax in enumerate(a):
+            labels_origin = deepcopy(ax.get_xticklabels())
             if i == 0:
                 ax.set_title(lab_dict[split_levels[j]], fontsize=fsize * 2)
             ax_lim = ax.get_ylim()
@@ -397,7 +399,72 @@ def plot_results(res_dfs, split_levels, output_path):
                 ax.set_ylabel("")
     
     for ax in rax[-1]:
-        ax.set_xticklabels(labels=ax.get_xticklabels(), fontsize=fsize, rotation=75)
+        ax.set_xticklabels(labels=labels_origin, fontsize=fsize, rotation=75)
+        ax.set_xlabel("CHEMBL ID", fontsize=fsize + 10)
+    
+    hdl, lbls = ax.get_legend_handles_labels()
+    for ax in rax.ravel():
+        ax.get_legend().remove()
+    
+    rfig.legend(handles=hdl, labels=lbls, fontsize=fsize, loc='lower center', ncols=len(lbls))
+    rfig.tight_layout()
+    rfig.subplots_adjust(left=0.08, bottom=0.15, right=0.99, top=0.95)
+    rfig.savefig(output_path)
+    plt.clf()
+    plt.close()
+
+def process_mlr_files(confs, files, prediction_levels, split_levels):
+    """Process prediction files and organize results."""
+    res_dict = {pslv: {} for pslv in prediction_levels}
+    for file in files:
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        for pslv, split_level in zip(prediction_levels, split_levels):
+            confs['split_level'] = split_level
+            pred_dir, _, _ = dirnameextractor('./outputs/prediction', confs)
+            pred_dir = os.path.join(pred_dir, file_uni_name)
+            res_prd_mlr = pd.read_csv(f'{pred_dir}/prd_molclr_scores.csv', header=0, index_col=None).sort_index()
+            res_prd_mlr.rename(columns={'Unnamed: 0': 'dataset', 'test_r2': 'r2', 'test_mae': 'mae', 'test_rmse': 'rmse'}, inplace=True)
+            res_prd_svr = pd.read_table(f'{pred_dir}/prediction_score_prd_test.tsv', header=0, index_col=None).sort_index()
+            res_prd_svr.rename(columns={'Rep_reaction': 'dataset', 'r2': 'r2'}, inplace=True)
+            rdict = {
+                'MolCLR': res_prd_mlr[['dataset', 'r2', 'mae', 'rmse']],
+                'SVR': res_prd_svr[res_prd_svr['model'] == 'svr_tanimoto'][['dataset', 'r2', 'mae', 'rmse']]
+            }
+            rdf = dfconcatinatorwithlabel(rdict, 'split_level')
+            res_dict[pslv][file_uni_name] = rdf.copy()
+    return {key: dfconcatinatorwithlabel(rd, 'uni_name').dropna() for key, rd in res_dict.items()}
+
+def plot_mlr_results(res_dfs, split_levels, output_path):
+    """Generate and save boxplots for the results."""
+    fsize = 30
+    lab_dict = {1: 'Product-based', 2: 'Reactant-based'}
+    met = {'r2': '$R^2$', 'mae': 'MAE'}
+    
+    rfig, rax = plt.subplots(2, len(split_levels), figsize=(len(split_levels) * 12, 20))
+    for i, (key, df) in enumerate(res_dfs.items()):
+        boxplotter(x='uni_name', y='r2', data=df, hue='split_level', ax=rax[0, i])
+        boxplotter(x='uni_name', y='mae', data=df, hue='split_level', ax=rax[1, i])
+    
+    for i, a in enumerate(rax):
+        for j, ax in enumerate(a):
+            labels_origin = deepcopy(ax.get_xticklabels())
+            if i == 0:
+                ax.set_title(lab_dict[split_levels[j]], fontsize=fsize * 2)
+            ax_lim = ax.get_ylim()
+            if ax_lim[0] > ax_lim[1]:
+                ax.invert_yaxis()
+            ax.yaxis.set_major_formatter(PercentFormatter(xmax=100, decimals=1, symbol=''))
+            ax.set_xticklabels(labels=["" for _ in ax.get_xticklabels()])
+            ax.set_xlabel("")
+            if j == 0:
+                ax.set_yticklabels(labels=ax.get_yticklabels(), fontsize=fsize)
+                ax.set_ylabel(met[ax.get_ylabel()], fontsize=fsize + 20)
+            else:
+                ax.set_yticklabels(labels=ax.get_yticklabels(), fontsize=fsize)
+                ax.set_ylabel("")
+    
+    for ax in rax[-1]:
+        ax.set_xticklabels(labels=labels_origin, fontsize=fsize, rotation=75)
         ax.set_xlabel("CHEMBL ID", fontsize=fsize + 10)
     
     hdl, lbls = ax.get_legend_handles_labels()
@@ -452,6 +519,7 @@ def plot_augmentation_differences(res_dfs, split_levels, output_path):
     
     for i, a in enumerate(rax):
         for j, ax in enumerate(a):
+            labels_origin = deepcopy(ax.get_xticklabels())
             if i == 0:
                 ax.set_title(lab_dict[split_levels[j]], fontsize=fsize * 2)
             ax_lim = ax.get_ylim()
@@ -468,7 +536,7 @@ def plot_augmentation_differences(res_dfs, split_levels, output_path):
                 ax.set_ylabel("")
     
     for ax in rax[-1]:
-        ax.set_xticklabels(labels=ax.get_xticklabels(), fontsize=fsize, rotation=75)
+        ax.set_xticklabels(labels=labels_origin, fontsize=fsize, rotation=75)
         ax.set_xlabel("CHEMBL ID", fontsize=fsize + 10)
     
     hdl, lbls = ax.get_legend_handles_labels()
