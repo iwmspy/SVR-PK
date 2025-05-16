@@ -1,22 +1,66 @@
 import argparse
+import csv
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import shutil
+cdir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(cdir, 'MolCLR'))
 import yaml
 import pandas as pd
 import numpy as np
 import torch
+from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch_geometric.data import Data, Dataset, DataLoader
+from rdkit import Chem
 
-from MolCLR import finetune
-from MolCLR.dataset.dataset_test import MolTestDatasetWrapper
+import finetune
+from dataset.dataset_test import MolTestDatasetWrapper, MolTestDataset
 
+apex_support = False
+
+def _save_config_file(model_checkpoints_folder):
+    if not os.path.exists(model_checkpoints_folder):
+        os.makedirs(model_checkpoints_folder)
+        # shutil.copy('./config_finetune.yaml', os.path.join(model_checkpoints_folder, 'config_finetune.yaml'))
+
+def read_smiles(data_path, target, task):
+    smiles_data, labels = [], []
+    with open(data_path) as csv_file:
+        csv_reader = csv.DictReader(csv_file, delimiter=',')
+        for i, row in enumerate(csv_reader):
+            smiles = row['smiles']
+            label = row[target]
+            mol = Chem.MolFromSmiles(smiles)
+            if mol != None and label != '':
+                smiles_data.append(smiles)
+                if task == 'classification':
+                    labels.append(int(label))
+                elif task == 'regression':
+                    labels.append(float(label))
+                else:
+                    ValueError('task must be either regression or classification')
+    print('Fixed', len(smiles_data))
+    return smiles_data, labels
 
 class FineTuneReturnsPredictedValues(finetune.FineTune):
     def __init__(self, dataset, config):
         super().__init__(dataset, config)
+        log_dir = os.path.join(cdir, 'MolCLR', 'ckpt', 'finetune', os.path.basename(self.writer.log_dir))
+        self.writer = SummaryWriter(log_dir=log_dir)
+    
+    def _load_pre_trained_weights(self, model):
+        try:
+            checkpoints_folder = os.path.join(cdir, 'MolCLR', 'ckpt', self.config['fine_tune_from'], 'checkpoints')
+            state_dict = torch.load(os.path.join(checkpoints_folder, 'model.pth'), map_location=self.device)
+            # model.load_state_dict(state_dict)
+            model.load_my_state_dict(state_dict)
+            print("Loaded pre-trained model with success.")
+        except FileNotFoundError:
+            print("Pre-trained weights not found. Training from scratch.")
+
+        return model
     
     def train(self):
         train_loader, valid_loader, test_loader = self.dataset.get_data_loaders()
@@ -31,11 +75,11 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
             print(self.normalizer.mean, self.normalizer.std, labels.shape)
 
         if self.config['model_type'] == 'gin':
-            from MolCLR.models.ginet_finetune import GINet
+            from models.ginet_finetune import GINet
             model = GINet(self.config['dataset']['task'], **self.config["model"]).to(self.device)
             model = self._load_pre_trained_weights(model)
         elif self.config['model_type'] == 'gcn':
-            from MolCLR.models.gcn_finetune import GCN
+            from models.gcn_finetune import GCN
             model = GCN(self.config['dataset']['task'], **self.config["model"]).to(self.device)
             model = self._load_pre_trained_weights(model)
 
@@ -61,7 +105,7 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
         model_checkpoints_folder = os.path.join(self.writer.log_dir, 'checkpoints')
 
         # save config file
-        finetune._save_config_file(model_checkpoints_folder)
+        _save_config_file(model_checkpoints_folder)
 
         n_iter = 0
         valid_n_iter = 0
@@ -155,19 +199,31 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
         model.train()
 
         return np.array(predictions)
+    
+
+class MolTestDatasetWithFixingSmiles(MolTestDataset):
+    def __init__(self, data_path, target, task):
+        super().__init__(data_path, target, task)
+        self.smiles_data, self.labels = read_smiles(data_path, target, task)
 
 
-class MolTestDatasetWithCustomSplit(MolTestDatasetWrapper):
+class MolTestDatasetWrapperWithCustomSplit(MolTestDatasetWrapper):
     def __init__(self, 
-            batch_size, num_workers, 
+            batch_size, num_workers, valid_size, test_size, 
             data_path, target, task, splitting):
-        super().__init__(self, 
+        super().__init__( 
             batch_size, num_workers, None, None, 
-            data_path, target, task, splitting)
+            data_path, target, task, splitting
+            )
+    
+    def get_data_loaders(self):
+        train_dataset = MolTestDatasetWithFixingSmiles(data_path=self.data_path, target=self.target, task=self.task)
+        train_loader, valid_loader, test_loader = self.get_train_validation_data_loaders(train_dataset)
+        return train_loader, valid_loader, test_loader
 
     def get_train_validation_data_loaders(self, train_dataset):
-        indices = pd.read_csv(self.data_path)['indices'].to_list()
-        valid_idx = np.array([i for i, x in enumerate(indices) if x == 'valid'])
+        indices = pd.read_csv(self.data_path)['split'].to_list()
+        valid_idx = np.array([i for i, x in enumerate(indices) if x == 'val'])
         test_idx = np.array([i for i, x in enumerate(indices) if x == 'test'])
         train_idx = np.array([i for i, x in enumerate(indices) if x == 'train'])
 
@@ -192,7 +248,7 @@ class MolTestDatasetWithCustomSplit(MolTestDatasetWrapper):
         return train_loader, valid_loader, test_loader
 
 def fine_tuning(config):
-    dataset = MolTestDatasetWithCustomSplit(config['batch_size'], **config['dataset'])
+    dataset = MolTestDatasetWrapperWithCustomSplit(config['batch_size'], **config['dataset'])
 
     fine_tune = FineTuneReturnsPredictedValues(dataset, config)
     return fine_tune.train()
@@ -211,16 +267,24 @@ def main(args):
     for target in target_list:
         config['dataset']['target'] = target
         train, val, test = fine_tuning(config)
-        
+    
+    for dataset in [train, val, test]:
+        indices = dataset['indices']
+        predictions = dataset['predictions']
+        df_part = pd.DataFrame({'indice': indices, 'prediction': predictions.ravel()})
+        results_list.append(df_part)
 
-    os.makedirs('experiments', exist_ok=True)
-    df = pd.DataFrame(results_list)
+    df = pd.concat(results_list).sort_values(by='indice').reset_index(drop=True)
     return df
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MolCLR Fine-tuning')
-    parser.add_argument('--config_path', type=str, default='configs/fine_tune.yaml', help='Path to the config file')
-    parser.add_argument('--data_path', type=str, default='data/test_data.csv', help='Path to the data file')
+    parser.add_argument('--config_path', type=str, default=os.path.join(cdir,'config_finetune.yaml'), help='Path to the config file')
+    parser.add_argument('--data_path', type=str, default=os.path.join(cdir,'test.csv'), help='Path to the data file')
     args = parser.parse_args()
 
-    main(args)
+    preds = main(args)
+    preds.to_csv('predictions.csv', index=False)
+    # meta  = pd.read_csv(args.data_path)
+    # concat = pd.concat([meta, preds], axis=1, ignore_index=True)
+    # concat.to_csv('predictions.csv', index=False)

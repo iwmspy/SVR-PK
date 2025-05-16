@@ -31,7 +31,6 @@ import numpy as np
 from tqdm import tqdm
 import time
 import os
-from IPython.display import display
 
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__)))
@@ -78,9 +77,6 @@ def do_one(prod_smiles, draw=draw, debug=debug, v=v, rc_cumurate=True,
     sims = similarity_metric(fp, [fp_ for fp_ in data['prod_fp']]) # calculate similarities between products want to divide and products from templates.
     print('took {:.3f} seconds to get similarity'.format(time.time() - start_time))
     js = np.argsort(sims,kind='mergesort')[::-1] # sort in order to similarities.
-
-    if draw: 
-        display(MolToImage(ex))
     
     # Get probability of precursors
     probs = {}
