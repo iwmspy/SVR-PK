@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
-from torch.utils.data.sampler import SubsetRandomSampler
+from torch.utils.data.sampler import SubsetRandomSampler, Sampler
 from torch_geometric.data import Data, Dataset, DataLoader
 from rdkit import Chem
 
@@ -19,6 +19,17 @@ import finetune
 from dataset.dataset_test import MolTestDatasetWrapper, MolTestDataset
 
 apex_support = False
+
+class SubsetSequentialSampler(Sampler):
+    def __init__(self, indices):
+        self.indices = indices
+
+    def __iter__(self):
+        return iter(self.indices)
+
+    def __len__(self):
+        return len(self.indices)
+    
 
 def _save_config_file(model_checkpoints_folder):
     if not os.path.exists(model_checkpoints_folder):
@@ -151,10 +162,17 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
                 self.writer.add_scalar('validation_loss', valid_loss, global_step=valid_n_iter)
                 valid_n_iter += 1
 
-        y_pred_generator = lambda loader: {
-            'indices': loader.batch_sampler.sampler.indices,
-            'predictions': self._test_with_predicted_values(model, loader)
-        }
+        def y_pred_generator(loader):
+            # get the indices of the data in the loader
+            indices = loader.batch_sampler.sampler.indices
+            # get the predictions from the model
+            values = self._test_with_predicted_values(model, loader)
+            return {
+                # 'indices': values['indices'],
+                'indices': indices,
+                'predictions': values['prediction'],
+                'ground_truth': values['ground_truth'],
+            }
         
         return(y_pred_generator(train_loader), y_pred_generator(valid_loader), y_pred_generator(test_loader))
 
@@ -169,6 +187,11 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
         labels = []
         with torch.no_grad():
             model.eval()
+
+            original_sampler = test_loader.batch_sampler.sampler
+            sampler_indices = test_loader.batch_sampler.sampler.indices
+
+            test_loader.batch_sampler.sampler = SubsetSequentialSampler(sampler_indices)
 
             test_loss = 0.0
             num_data = 0
@@ -197,8 +220,9 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
             test_loss /= num_data
         
         model.train()
+        test_loader.batch_sampler.sampler = original_sampler
 
-        return np.array(predictions)
+        return {'ground_truth': np.array(labels).ravel(), 'prediction': np.array(predictions).ravel()}
     
 
 class MolTestDatasetWithFixingSmiles(MolTestDataset):
@@ -268,10 +292,12 @@ def main(args):
         config['dataset']['target'] = target
         train, val, test = fine_tuning(config)
     
-    for dataset in [train, val, test]:
+    for dataset, split in zip([train, val, test], ['train', 'val', 'test']):
         indices = dataset['indices']
         predictions = dataset['predictions']
-        df_part = pd.DataFrame({'indice': indices, 'prediction': predictions.ravel()})
+        ground_truth = dataset['ground_truth']
+        df_part = pd.DataFrame({'indice': indices, 'prediction': predictions, 'ground_truth': ground_truth})
+        df_part['split_molclr'] = split
         results_list.append(df_part)
 
     df = pd.concat(results_list).sort_values(by='indice').reset_index(drop=True)

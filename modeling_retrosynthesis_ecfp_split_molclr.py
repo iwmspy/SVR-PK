@@ -111,7 +111,7 @@ def main():
                         )
                         product_results = molclr_main(args_prd)
                         product_results.index = product_df.index
-                        prd_results_raw = pd.concat([product_df, product_results['prediction']],axis=1)
+                        prd_results_raw = pd.concat([product_df, product_results[['prediction','ground_truth']]],axis=1)
                         prd_results_raw['Rep_reaction'] = name
                         prd_results_dfs.append(prd_results_raw)
                         prd_scores_dfs.append([
