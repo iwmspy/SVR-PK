@@ -73,7 +73,6 @@ def main():
                 ts_data = prep_data.loc[ts_indices]
                 vl_data = prep_data.loc[vl_indices]
 
-                tr_data_copy = tr_data.copy()
                 # Remove rows from tr_data that have both index_col and 'Rep_reaction' present in vl_data
                 vl_keys = set(zip(vl_data[index_col], vl_data['Rep_reaction']))
                 tr_data = tr_data[~tr_data.apply(lambda row: (row[index_col], row['Rep_reaction']) in vl_keys, axis=1)]
@@ -94,55 +93,49 @@ def main():
                     for name, group in final_data.groupby('Rep_reaction'):
                         if group[group['split']=='test'].empty:
                             continue
-                        raw_tr_set = set(tr_data_copy[tr_data_copy['Rep_reaction']==name][index_col])
-                        tr_set = set(group[group['split']=='train'][index_col])
-                        vl_set = set(group[group['split']=='val'][index_col])
-                        inter = tr_set.intersection(vl_set)
-                        uni = tr_set.union(vl_set)
-                        lgr.write(f'Train/val not leaked: {len(list(inter))==0}')
-                        lgr.write(f'Raw train matches train/val: {raw_tr_set==uni}')
-                #         name_list.append(name)
 
-                #         group = group.rename(columns={objective_col: 'obj'})
-                #         product_df = group.rename(columns={'Product_raw': 'smiles'})[[index_col, 'smiles', 'obj', 'split']]
-                #         product_df.drop_duplicates(subset=['smiles'], inplace=True)
+                        name_list.append(name)
+
+                        group = group.rename(columns={objective_col: 'obj'})
+                        product_df = group.rename(columns={'Product_raw': 'smiles'})[[index_col, 'smiles', 'obj', 'split']]
+                        product_df.drop_duplicates(subset=['smiles'], inplace=True)
                         
-                #         product_df.to_csv(f'{tmpdir}/{group["Rep_reaction"].values[0]}_product.csv', index=False)
+                        product_df.to_csv(f'{tmpdir}/{group["Rep_reaction"].values[0]}_product.csv', index=False)
 
-                #         args_prd = argparse.Namespace(
-                #             config_path=f'{pwd}/models/config_finetune.yaml',
-                #             data_path=f'{tmpdir}/{group["Rep_reaction"].values[0]}_product.csv',
-                #         )
-                #         product_results = molclr_main(args_prd)
-                #         product_results.index = product_df.index
-                #         prd_results_raw = pd.concat([product_df, product_results[['prediction','ground_truth']]],axis=1)
-                #         prd_results_raw['Rep_reaction'] = name
-                #         prd_results_dfs.append(prd_results_raw)
-                #         prd_scores_dfs.append([
-                #             r2_score(prd_results_raw[prd_results_raw['split']=='train']['obj'], prd_results_raw[prd_results_raw['split']=='train']['prediction']),
-                #             np.sqrt(mean_squared_error(prd_results_raw[prd_results_raw['split']=='train']['obj'], prd_results_raw[prd_results_raw['split']=='train']['prediction'])),
-                #             mean_absolute_error(prd_results_raw[prd_results_raw['split']=='train']['obj'], prd_results_raw[prd_results_raw['split']=='train']['prediction']),
-                #             r2_score(prd_results_raw[prd_results_raw['split']=='val']['obj'], prd_results_raw[prd_results_raw['split']=='val']['prediction']),
-                #             np.sqrt(mean_squared_error(prd_results_raw[prd_results_raw['split']=='val']['obj'], prd_results_raw[prd_results_raw['split']=='val']['prediction'])),
-                #             mean_absolute_error(prd_results_raw[prd_results_raw['split']=='val']['obj'], prd_results_raw[prd_results_raw['split']=='val']['prediction']),
-                #             r2_score(prd_results_raw[prd_results_raw['split']=='test']['obj'], prd_results_raw[prd_results_raw['split']=='test']['prediction']),
-                #             np.sqrt(mean_squared_error(prd_results_raw[prd_results_raw['split']=='test']['obj'], prd_results_raw[prd_results_raw['split']=='test']['prediction'])),
-                #             mean_absolute_error(prd_results_raw[prd_results_raw['split']=='test']['obj'], prd_results_raw[prd_results_raw['split']=='test']['prediction']),
-                #                      ])
+                        args_prd = argparse.Namespace(
+                            config_path=f'{pwd}/models/config_finetune.yaml',
+                            data_path=f'{tmpdir}/{group["Rep_reaction"].values[0]}_product.csv',
+                        )
+                        product_results = molclr_main(args_prd)
+                        product_results.index = product_df.index
+                        prd_results_raw = pd.concat([product_df, product_results[['prediction','ground_truth']]],axis=1)
+                        prd_results_raw['Rep_reaction'] = name
+                        prd_results_dfs.append(prd_results_raw)
+                        prd_scores_dfs.append([
+                            r2_score(prd_results_raw[prd_results_raw['split']=='train']['obj'], prd_results_raw[prd_results_raw['split']=='train']['prediction']),
+                            np.sqrt(mean_squared_error(prd_results_raw[prd_results_raw['split']=='train']['obj'], prd_results_raw[prd_results_raw['split']=='train']['prediction'])),
+                            mean_absolute_error(prd_results_raw[prd_results_raw['split']=='train']['obj'], prd_results_raw[prd_results_raw['split']=='train']['prediction']),
+                            r2_score(prd_results_raw[prd_results_raw['split']=='val']['obj'], prd_results_raw[prd_results_raw['split']=='val']['prediction']),
+                            np.sqrt(mean_squared_error(prd_results_raw[prd_results_raw['split']=='val']['obj'], prd_results_raw[prd_results_raw['split']=='val']['prediction'])),
+                            mean_absolute_error(prd_results_raw[prd_results_raw['split']=='val']['obj'], prd_results_raw[prd_results_raw['split']=='val']['prediction']),
+                            r2_score(prd_results_raw[prd_results_raw['split']=='test']['obj'], prd_results_raw[prd_results_raw['split']=='test']['prediction']),
+                            np.sqrt(mean_squared_error(prd_results_raw[prd_results_raw['split']=='test']['obj'], prd_results_raw[prd_results_raw['split']=='test']['prediction'])),
+                            mean_absolute_error(prd_results_raw[prd_results_raw['split']=='test']['obj'], prd_results_raw[prd_results_raw['split']=='test']['prediction']),
+                                     ])
 
-                # # Save results_dfs to dir_pred
-                # prd_results_df = pd.concat(prd_results_dfs, ignore_index=True)
-                # MakeDirIfNotExisting(dir_pred)
-                # prd_results_df.to_csv(f'{dir_pred}/prd_molclr_results.csv')
+                # Save results_dfs to dir_pred
+                prd_results_df = pd.concat(prd_results_dfs, ignore_index=True)
+                MakeDirIfNotExisting(dir_pred)
+                prd_results_df.to_csv(f'{dir_pred}/prd_molclr_results.csv')
 
-                # # Save scores_dfs to dir_pred
-                # prd_scores_df = pd.DataFrame(prd_scores_dfs, columns=metrics, index=name_list)
-                # prd_scores_df.to_csv(f'{dir_pred}/prd_molclr_scores.csv')
+                # Save scores_dfs to dir_pred
+                prd_scores_df = pd.DataFrame(prd_scores_dfs, columns=metrics, index=name_list)
+                prd_scores_df.to_csv(f'{dir_pred}/prd_molclr_scores.csv')
 
-                # print('--Results of product modeling--')
-                # print(prd_scores_df)
-                # print('\n')
-                # lgr.write(f'End prediction. Took {str(t.get_runtime())} sec.')
+                print('--Results of product modeling--')
+                print(prd_scores_df)
+                print('\n')
+                lgr.write(f'End prediction. Took {str(t.get_runtime())} sec.')
         
         except Exception as e:
             error_class = type(e)
