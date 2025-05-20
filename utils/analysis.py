@@ -733,26 +733,93 @@ def analyze_augmentation_effect(confs, files, split_levels, prediction_levels, c
 
     return results
 
-def analyze_and_plot_augmentation_effect(config_file_path, output_path):
+def plot_actual_vs_predicted(config_file_path, output_dir='./outputs/prediction', fsize=24):
     """
-    Analyze the effect of augmentation and plot the results.
-
-    Args:
-        config_file_path (str): Path to the configuration file.
-        output_path (str): Path to save the output plot.
+    For each file and reaction, generate and save scatter plots of measured vs. predicted values.
+    The color indicates whether augmentation is used or not.
     """
-    # Load configuration
     confs = load_config(config_file_path)
+
     files = confs["files"]
-    split_levels = [1, 2]
-    prediction_levels = [f'prediction_level{spl}' for spl in split_levels]
+    obj_col = confs['objective_col']
+    pred_rct_col = 'svr_tanimoto_split_rct_pred'
+    pred_prd_col = 'svr_tanimoto_prd_pred'
+    idx_col = confs['index_col']
 
-    # Process augmentation differences
-    res_dfs = process_augmentation_differences(confs, files, split_levels, prediction_levels)
+    for file in files:
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        axes_obj_dict = None
+        fig = None
 
-    # Plot results
-    plot_augmentation_differences(res_dfs, split_levels, output_path)
-    print(f"Augmentation effect analysis saved to {output_path}")
+        for i, aug in enumerate([False, True]):
+            confs['augmentation'] = aug
+            pred_dir_base, _, _ = dirnameextractor(output_dir, confs)
+            pred_dir = os.path.join(pred_dir_base, file_uni_name)
+
+            prd_ts = pd.read_table(f'{pred_dir}/prediction_results_prd_test.tsv', header=0, index_col=0)
+            rct_ts = pd.read_table(f'{pred_dir}/prediction_results_rct_test.tsv', header=0, index_col=0)
+
+            reactions = sorted(set(rct_ts['Rep_reaction']))
+            ver, hor = GridGenerator(reactions)
+
+            if i == 0:
+                # Create subplots for each reaction
+                fig, axes = plt.subplots(ver, hor, figsize=(hor * 11, ver * 10))
+                axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
+                axes_obj_dict = {rxn: ax for rxn, ax in zip(reactions, axes)}
+
+            for rxn, ax in axes_obj_dict.items():
+                ax.set_xlabel('Measured $pK_i$', fontsize=fsize)
+                ax.set_ylabel('Predicted $pK_i$', fontsize=fsize)
+                if i == 0:
+                    # Plot SVR-baseline and SVR-PK without augmentation for test data
+                    ax.scatter(
+                        prd_ts[prd_ts['Rep_reaction'] == rxn][obj_col],
+                        prd_ts[prd_ts['Rep_reaction'] == rxn][pred_prd_col],
+                        label='SVR-baseline', color='green'
+                    )
+                    ax.scatter(
+                        rct_ts[rct_ts['Rep_reaction'] == rxn][obj_col],
+                        rct_ts[rct_ts['Rep_reaction'] == rxn][pred_rct_col],
+                        label='SVR-PK without augmentation', color='orange'
+                    )
+                else:
+                    # Plot SVR-PK with augmentation for test data
+                    ax.scatter(
+                        rct_ts[rct_ts['Rep_reaction'] == rxn][obj_col],
+                        rct_ts[rct_ts['Rep_reaction'] == rxn][pred_rct_col],
+                        label='SVR-PK', color='blue'
+                    )
+                # Collect all relevant values for axis limits
+                vals = []
+                vals.extend(rct_ts[rct_ts['Rep_reaction'] == rxn][obj_col].values)
+                vals.extend(rct_ts[rct_ts['Rep_reaction'] == rxn][pred_rct_col].values)
+                vals.extend(prd_ts[prd_ts['Rep_reaction'] == rxn][pred_prd_col].values)
+                lim = (min(vals) - 0.5, max(vals) + 0.5)
+
+                ax.set_xlim(lim)
+                ax.set_ylim(lim)
+                
+                # Draw diagonal line
+                rlim_act = ax.get_xlim()
+                rlim_obj = ax.get_ylim()
+                rlim = [min(rlim_act[0], rlim_obj[0]), max(rlim_act[1], rlim_obj[1])]
+                ax.plot([rlim[0], rlim[1]], [rlim[0], rlim[1]], color='red')
+                ax.set_xticklabels(ax.get_xticklabels(), fontsize=fsize)
+                ax.set_yticklabels(ax.get_yticklabels(), fontsize=fsize)
+                ax.set_title(rxn, fontsize=fsize)
+                ax.set_aspect('equal')
+
+        # Add legends to each subplot
+        for rxn, ax in axes_obj_dict.items():
+            ax.legend(fontsize=18)
+
+        # Set the main title and save the figure
+        fig.suptitle(f'{file_uni_name}_actual_predict_plot', fontsize=fsize)
+        fig.tight_layout(rect=[0, 0, 1, 0.98])
+        fig.savefig(f'{pred_dir}/prediction_results_plot.png')
+        plt.clf()
+        plt.close()
 
 def grid_generator(unique):
     """Generate grid dimensions for subplots."""
