@@ -1,6 +1,6 @@
 ## Modeling by splitted fingerprints
 
-import os,json,sys
+import os,json,sys,re
 pwd = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(pwd)
 import traceback
@@ -15,15 +15,13 @@ from utils.utility import timer,logger,AttrJudge,MakeDirIfNotExisting
 from utils.chemutils import TransReactantByTemplate
 
 
-parser = argparse.ArgumentParser(description='Retrosynthesize actual molecules...')
-parser.add_argument('-c', '--config', default=f'{pwd}/config/example_config.json', help='Configration')
-# parser.add_argument('-c', '--config', default=f'{pwd}/config/chembl_config_lv2.json', help='Configration')
+parser = argparse.ArgumentParser(description='Modeling from retrosynthesized pairs...')
+parser.add_argument('-c', '--config', default=f'{pwd}/config/chembl_config_lv1.json', help='Configration')
 
 args = parser.parse_args()
 
 mls_prd  = ['svr_tanimoto']
 mls_rct  = ['svr_tanimoto_split','svr_tanimoto_average','svr_tanimoto']
-
 
 def main():
     with open(args.config,'r') as f:
@@ -64,28 +62,33 @@ def main():
                 prep_data = pd.read_table(f'{dir_preprocess}/retro_{file_uni_name}_preprocessed.tsv',
                     header = 0, index_col = 0)
                 if  split_level == 1:
-                    tr_data, tr_whole_data, ts_data, ts_whole_data    = CustomDissimilarRandomSplit(
-                        prep_data,index_col,'Rep_reaction',split_level,'Product_raw')
+                    with open(f'{dir_preprocess}/product-based_train_ids.txt', 'r') as f:
+                        tr_indices = [int(line.strip()) for line in f if line.strip()]
+                    with open(f'{dir_preprocess}/product-based_test_ids.txt', 'r') as f:
+                        ts_indices = [int(line.strip()) for line in f if line.strip()]
                 elif split_level == 2:
-                    tr_data, tr_whole_data, ts_data, ts_whole_data, _ = CustomFragmentSpaceSplitbyFreq(
-                        prep_data,index_col,'Precursors',0.4,'Rep_reaction')
+                    with open(f'{dir_preprocess}/reactant-based_train_ids.txt', 'r') as f:
+                        tr_indices = [int(line.strip()) for line in f if line.strip()]
+                    with open(f'{dir_preprocess}/reactant-based_test_ids.txt', 'r') as f:
+                        ts_indices = [int(line.strip()) for line in f if line.strip()]
+
+                tr_data = prep_data.loc[tr_indices]
+                ts_data = prep_data.loc[ts_indices]
+
                 if augmentation:
                     tr_data = TransReactantByTemplate(
                         tr_data, index_col, 'Product', 'Precursors', 'template', 
                         'Rep_reaction', objective_col, product_ECFP_col='Product_raw')
-                tr_score_prd, tr_score_prd_whole, tr_score_rct = rxnmlmod.run_cv(
+                tr_score_prd, tr_score_rct = rxnmlmod.run_cv(
                     tr_data,objective_col,'Product_raw','Precursors',index_col,'Rep_reaction',
-                    df_whole=tr_whole_data,split_components=True)
-                ts_score_prd, ts_score_prd_whole, ts_score_rct = rxnmlmod.scoring(
+                    df_whole=None,split_components=True)
+                ts_score_prd, ts_score_rct = rxnmlmod.scoring(
                     ts_data,objective_col,'Product_raw','Precursors',index_col,'Rep_reaction',
-                    df_whole=ts_whole_data,split_components=True)
+                    df_whole=None,split_components=True)
                 
                 print('==Results of Training==')
                 print('--Results of product modeling--')
                 print(tr_score_prd)
-                print('\n')
-                print('--Results of product_whole modeling--')
-                print(tr_score_prd_whole)
                 print('\n')
                 print('--Results of reactant modeling--')
                 print(tr_score_rct)
@@ -93,9 +96,6 @@ def main():
                 print('==Results of Test==')
                 print('--Results of product modeling--')
                 print(ts_score_prd)
-                print('\n')
-                print('--Results of product_whole modeling--')
-                print(ts_score_prd_whole)
                 print('\n')
                 print('--Results of reactant modeling--')
                 print(ts_score_rct)
@@ -106,7 +106,20 @@ def main():
                 pickle.dump(rxnmlmod, f)
         
         except Exception as e:
-            lgr.write(e)
+            error_class = type(e)
+            error_description = str(e)
+            err_msg = '%s: %s' % (error_class, error_description)
+            lgr.write(err_msg)
+            tb = traceback.extract_tb(sys.exc_info()[2])
+            trace = traceback.format_list(tb)
+            lgr.write('---- traceback ----')
+            for line in trace:
+                if '~^~' in line:
+                    lgr.write(line.rstrip())
+                else:
+                    text = re.sub(r'\n\s*', ' ', line.rstrip())
+                    lgr.write(text)
+            lgr.write('-------------------')
             lgr.write('Modeling skip!')
 
 if __name__=='__main__': 
