@@ -38,7 +38,7 @@ confs = json.load(open(args.config,'r'))
 # Settings used in this program
 files            = confs['files']
 if 'cand_path' not in confs:
-    confs['cand_path'] = f'{pwd}/emolecules/emolecules_compounds_curated.tsv'
+    confs['cand_path'] = f'{pwd}/outputs/emolecules/emolecules_compounds_curated.tsv'
 confs['cand_path'] = os.path.abspath(confs['cand_path'])
 cand_path        = confs['cand_path']
 out_dir          = AttrJudge(confs, 'out_dir', f'{pwd}/outputs') 
