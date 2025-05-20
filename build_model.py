@@ -39,7 +39,9 @@ def main():
     if augmentation:
         dir_pred_wrap = f'{dir_pred_wrap}_augmented'
     MakeDirIfNotExisting(dir_pred_wrap)
-    lgr = logger(filename=f'{out_dir}/logs/prediction_log.txt')
+    fname = f'{out_dir}/logs/prediction_level{split_level}_augmented_log.txt' \
+        if augmentation else f'{out_dir}/logs/prediction_level{split_level}_log.txt'
+    lgr = logger(filename=fname)
     lgr.write(f'Start {__file__}')
     lgr.write(f'Files : ---')
     for file in files:
