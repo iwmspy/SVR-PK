@@ -15,13 +15,13 @@ conda activate svr-pk
 
 This repository contained following two repository, [retrosim](https://github.com/connorcoley/retrosim) (in <code>SVR-PK/retrosynthesis</code>) and [TS](https://github.com/PatWalters/TS) (in <code>SVR-PK/_benchmarking/Thompson</code>). Scripts that have been modified to meet our purposes have <code>_iwmspy</code> prefixed to the extension.
 
-Datasets we used can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository. Please unzip after downloading and place the contents directory so that it has the following status.
+Preprocessed datasets can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository. Please unzip after downloading and place the contents directory so that it has the following status.
 ```
 SVR-PK
-|- chembl31 : For model construction
-|- emolecules : For screening
+|- outputs
+    |- preprocessed : Retrosynthesized, preprocessed, split(train, test, val[only for MolCLR])
+    |- emolecules : For screening
 ```
-
 
 ## 0. Configuration
 You can use your original datasets by creating config file and run below code with <code>-c [your config file].json</code> option. Please refer json files stored in <code>config</code> to create your own config file. 
@@ -52,16 +52,8 @@ You can use your original datasets by creating config file and run below code wi
 Run below code.
 
 ```
-python rm_main.py -c [your_config_file].json
+python build_model.py -c [your_config_file].json
 ```
-
-This procedure contains below modules.
-
-* <code>generate_retrosynthesis.py</code>: For generating reactants from actual molecules
-* <code>preprocess_for_retrosynthesis.py</code>: For preprocessing generated datasets
-* <code>modeling_retrosynthesis_ecfp_split.py</code>: For modeling from reactants
-
-Same parameter (-c) can be used in all of process script. If you already have retrosynthesized and preprocessed files, you can skip <code>generate_retrosynthesis.py</code> and <code>preprocess_for_retrosynthesis.py</code>. i.e. You can run <code>modeling_retrosynthesis_ecfp_split.py -c [your_config_file].json</code> by itself (stand-alone).
 
 Our results can be replicated by this json file.
 
@@ -69,6 +61,12 @@ Our results can be replicated by this json file.
 * <code>chembl_config_lv1_augment.json</code>: Product-based splitting with data augmentation
 * <code>chembl_config_lv2.json</code>: Reactant-based splitting
 * <code>chembl_config_lv2_augment.json</code>: Reactant-based splitting with data augmentation
+
+If you have your own dataset, you can inplement modeling by following script.
+
+```
+python rm_main.py -c [your_config_file].json
+```
 
 ## 2. Screen reactants and combine by generated models
 
@@ -103,10 +101,10 @@ Results will be stored <code>outputs</code> directory.
 ```
 SVR-PK
 |- outputs
-    |- datasets : retrosynthesized datasets
-    |- preprocessed : preprocessed datasets
+    |- ...
     |- prediction_level{n}[_augmented] : results of model construction
     |- reactant_combination_level{n}[\_augmented]\_{m}[\_rc{l}] : proposed reactant pairs
+    |- ...
 ```
 
 Results you obtained can be analyzed by using <code>analysis.ipynb</code>.
