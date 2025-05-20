@@ -53,7 +53,7 @@ def main():
                 
                 df_template_uspto = Summarizer(data_preprocessed,index_col)
                 df_template_uspto.to_csv(
-                    f'{dir_prep}/retro_{file_uni_name}_calculate_summary.tsv',
+                    f'{dir_prep_file}/retro_{file_uni_name}_calculate_summary.tsv',
                     sep='\t')
                 data_preprocessed.to_csv(
                     f'{dir_prep_file}/retro_{file_uni_name}_preprocessed.tsv',
