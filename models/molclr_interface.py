@@ -177,10 +177,10 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
         # Save best validation info as JSON (newline delimited)
         best_info = {
             "best_valid_epoch": int(best_valid_num),
-            "best_valid_loss": float(best_valid_loss)
+            "best_valid_loss": float(best_valid_rgr)
         }
         with open(os.path.join(model_checkpoints_folder, "best_valid_info.json"), "w") as f:
-            f.write("{")
+            f.write("{\n")
             for key, value in best_info.items():
                 f.write(f"\t{key}: {value},\n")
             f.write("}")
