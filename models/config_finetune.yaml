@@ -1,5 +1,5 @@
 batch_size: 32                  # batch size
-epochs: 100                     # total number of epochs
+epochs: 500                     # total number of epochs. Changed to 500 by iwmspy
 eval_every_n_epochs: 1          # validation frequency
 fine_tune_from: pretrained_gin  # sub directory of pre-trained model in ./ckpt
 log_every_n_steps: 50           # print training log frequency
