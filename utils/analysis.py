@@ -3,6 +3,8 @@ from copy import deepcopy
 import json
 import os
 from tempfile import TemporaryDirectory
+import warnings
+warnings.filterwarnings('ignore')
 
 from joblib import Parallel, delayed
 import matplotlib.pyplot as plt
@@ -413,6 +415,30 @@ def plot_results(res_dfs, split_levels, output_path):
     plt.clf()
     plt.close()
 
+def process_mlr_files_only(confs, files, prediction_levels, split_levels, rxns):
+    """Process prediction files and organize results."""
+    res_dict = {pslv: {} for pslv in prediction_levels}
+    for file in files:
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        for pslv, split_level in zip(prediction_levels, split_levels):
+            confs['split_level'] = split_level
+            pred_dir, _, _ = dirnameextractor('./outputs/prediction', confs)
+            pred_dir = os.path.join(pred_dir, file_uni_name)
+            res_prd_mlr = pd.read_csv(f'{pred_dir}/prd_molclr_scores.csv', header=0, index_col=None).sort_index()
+            res_prd_mlr.rename(columns={'Unnamed: 0': 'dataset'}, inplace=True)
+            rdict = {
+                'MolCLR': res_prd_mlr,
+            }
+            rdf = dfconcatinatorwithlabel(rdict, 'split_level')
+            res_dict[pslv][file_uni_name] = rdf.copy()
+    dfs = {key: dfconcatinatorwithlabel(rd, 'uni_name').dropna() for key, rd in res_dict.items()}
+    for key, df in dfs.items():
+        df['identifier'] = [f'{idx}_{rxn}' for idx, rxn in zip(df['uni_name'], df['dataset'])]
+        df['Reaction set ID'] = [rxns.loc[id, 'Reation set ID'] for id in df['identifier']]
+        df.sort_values(by=['Reaction set ID'], inplace=True)
+        dfs[key] = df
+    return dfs
+
 def process_mlr_files(confs, files, prediction_levels, split_levels):
     """Process prediction files and organize results."""
     res_dict = {pslv: {} for pslv in prediction_levels}
@@ -818,6 +844,7 @@ def plot_actual_vs_predicted(config_file_path, output_dir='./outputs/prediction'
         fig.suptitle(f'{file_uni_name}_actual_predict_plot', fontsize=fsize)
         fig.tight_layout(rect=[0, 0, 1, 0.98])
         fig.savefig(f'{pred_dir}/prediction_results_plot.png')
+        print(f"Scatter plot saved to {pred_dir}/prediction_results_plot.png")
         plt.clf()
         plt.close()
 
