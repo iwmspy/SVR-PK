@@ -105,6 +105,7 @@ def main():
                         args_prd = argparse.Namespace(
                             config_path=f'{pwd}/models/config_finetune.yaml',
                             data_path=f'{tmpdir}/{group["Rep_reaction"].values[0]}_product.csv',
+                            model_name=f'{file_uni_name}_{name}'
                         )
                         product_results = molclr_main(args_prd)
                         product_results.index = product_df.index

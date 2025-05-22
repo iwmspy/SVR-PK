@@ -301,6 +301,39 @@ def load_and_process_data(pred_dir, met):
 
     return res_rxn_tr, res_rxn_ts
 
+def is_augmented(confs, files, split_levels, rxns):
+    """Process data for each split level and augmentation."""
+    res_dict_tr_out = {}
+
+    for split_level, split_label in split_levels.items():
+        confs['split_level'] = split_level
+        confs['augmentation'] = True
+        pred_dir_base, _, _ = dirnameextractor('./outputs/prediction', confs)
+
+        res_dict_tr = {}
+        
+        for file in files:
+            file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+            pred_dir = os.path.join(pred_dir_base, file_uni_name)
+            res_rxn_tr = pd.read_table(f'{pred_dir}/prediction_results_rct_train.tsv', header=0, index_col=0)
+
+            # For each 'Rep_reaction', check if any entry has 'augmented' == True
+            augmented_flags = res_rxn_tr.groupby('Rep_reaction')['augmented'].any()
+
+            # Store processed data
+            res_dict_tr[file_uni_name] = pd.DataFrame(augmented_flags)
+
+        # Concatenate and process results
+        res_df_tr = dfconcatinatorwithlabel(res_dict_tr, 'CHEMBL ID')
+        res_df_tr['Identifier'] = [f'{id}_{rxn}' for id, rxn in zip(res_df_tr['CHEMBL ID'], res_df_tr.index)]
+        res_df_tr['Reaction set ID'] = [rxns.loc[id, 'Reation set ID'] for id in res_df_tr['Identifier']]
+        res_df_tr.sort_values(['Reaction set ID'], key=lambda s: [st.lower() if isinstance(st, str) else st for st in s], inplace=True)
+        res_df_tr.set_index('Reaction set ID', inplace=True, drop=True)
+
+        res_dict_tr_out[f'{split_label}_augmented'] = res_df_tr
+
+    return res_dict_tr_out
+
 def process_split_level(confs, files, split_levels, augment, met, rxns):
     """Process data for each split level and augmentation."""
     res_dict_tr_out = {}

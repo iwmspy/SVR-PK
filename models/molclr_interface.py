@@ -9,6 +9,7 @@ import yaml
 import pandas as pd
 import numpy as np
 import torch
+from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 from torch.utils.data.sampler import SubsetRandomSampler, Sampler
@@ -32,9 +33,8 @@ class SubsetSequentialSampler(Sampler):
     
 
 def _save_config_file(model_checkpoints_folder):
-    if not os.path.exists(model_checkpoints_folder):
-        os.makedirs(model_checkpoints_folder)
-        # shutil.copy('./config_finetune.yaml', os.path.join(model_checkpoints_folder, 'config_finetune.yaml'))
+    os.makedirs(model_checkpoints_folder, exist_ok=True)
+    # shutil.copy('./config_finetune.yaml', os.path.join(model_checkpoints_folder, 'config_finetune.yaml'))
 
 def read_smiles(data_path, target, task):
     smiles_data, labels = [], []
@@ -56,10 +56,19 @@ def read_smiles(data_path, target, task):
     return smiles_data, labels
 
 class FineTuneReturnsPredictedValues(finetune.FineTune):
-    def __init__(self, dataset, config):
-        super().__init__(dataset, config)
-        log_dir = os.path.join(cdir, 'MolCLR', 'ckpt', 'finetune', os.path.basename(self.writer.log_dir))
+    def __init__(self, dataset, config, mname):
+        self.config = config
+        self.device = self._get_device()
+        log_dir = os.path.join(cdir, 'MolCLR', 'ckpt', 'finetune', mname)
         self.writer = SummaryWriter(log_dir=log_dir)
+        self.dataset = dataset
+        if config['dataset']['task'] == 'classification':
+            self.criterion = nn.CrossEntropyLoss()
+        elif config['dataset']['task'] == 'regression':
+            if self.config["task_name"] in ['qm7', 'qm8', 'qm9']:
+                self.criterion = nn.L1Loss()
+            else:
+                self.criterion = nn.MSELoss()
     
     def _load_pre_trained_weights(self, model):
         try:
@@ -123,6 +132,7 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
         best_valid_loss = np.inf
         best_valid_rgr = np.inf
         best_valid_cls = 0
+        best_valid_num = -1
 
         for epoch_counter in range(self.config['epochs']):
             for bn, data in enumerate(train_loader):
@@ -150,17 +160,30 @@ class FineTuneReturnsPredictedValues(finetune.FineTune):
                     valid_loss, valid_cls = self._validate(model, valid_loader)
                     if valid_cls > best_valid_cls:
                         # save the model weights
+                        best_valid_num = epoch_counter
                         best_valid_cls = valid_cls
                         torch.save(model.state_dict(), os.path.join(model_checkpoints_folder, 'model.pth'))
                 elif self.config['dataset']['task'] == 'regression': 
                     valid_loss, valid_rgr = self._validate(model, valid_loader)
                     if valid_rgr < best_valid_rgr:
                         # save the model weights
+                        best_valid_num = epoch_counter
                         best_valid_rgr = valid_rgr
                         torch.save(model.state_dict(), os.path.join(model_checkpoints_folder, 'model.pth'))
 
                 self.writer.add_scalar('validation_loss', valid_loss, global_step=valid_n_iter)
                 valid_n_iter += 1
+
+        # Save best validation info as JSON (newline delimited)
+        best_info = {
+            "best_valid_epoch": int(best_valid_num),
+            "best_valid_loss": float(best_valid_loss)
+        }
+        with open(os.path.join(model_checkpoints_folder, "best_valid_info.json"), "w") as f:
+            f.write("{")
+            for key, value in best_info.items():
+                f.write(f"\t{key}: {value},\n")
+            f.write("}")
 
         def y_pred_generator(loader):
             # get the indices of the data in the loader
@@ -274,7 +297,7 @@ class MolTestDatasetWrapperWithCustomSplit(MolTestDatasetWrapper):
 def fine_tuning(config):
     dataset = MolTestDatasetWrapperWithCustomSplit(config['batch_size'], **config['dataset'])
 
-    fine_tune = FineTuneReturnsPredictedValues(dataset, config)
+    fine_tune = FineTuneReturnsPredictedValues(dataset, config, config['mname'])
     return fine_tune.train()
     
 def main(args):
@@ -283,6 +306,7 @@ def main(args):
 
     config['dataset']['task'] = 'regression'
     config['dataset']['data_path'] = args.data_path
+    config['mname'] = args.model_name
     target_list = ['obj']
 
     print(config)
@@ -307,6 +331,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='MolCLR Fine-tuning')
     parser.add_argument('--config_path', type=str, default=os.path.join(cdir,'config_finetune.yaml'), help='Path to the config file')
     parser.add_argument('--data_path', type=str, default=os.path.join(cdir,'test.csv'), help='Path to the data file')
+    parser.add_argument('--model_name', type=str, default='model', help='Name of the model to be trained')
     args = parser.parse_args()
 
     preds = main(args)
