@@ -1,21 +1,25 @@
-# Screening by SVR-PK
+# Implementation of SVR-PK and virtual screening protocol
 
-This codeset works following below procedure.
+Support vector regression with a prodcut kernel (SVR-PK) can efficiently evaluate a molecule consisting of multiple reactant components. Each component has a kernel function (default: Tanimoto kernel) and the product of the kernel functions form the kernel function in SVR. 
+For more details, please refere to the [paper](URL_to_the_paper)
 
-## Prepare enviromment and datasets
+## Environment setting
+[Conda](URL_to_conda) is recommended to handle packages in a virtual environment. Required packages are listed in `_env/requirements.yml`.
 
-Required packages are writtten on <code>_env/requirements.yml</code>.
-
-Please create and activate conda environment by following command.
-
-```
-conda env create -f _env/requirements.yml
+```bash
+git clone https://github.com/iwmspy/SVR-PK.git
+cd SVR-PK
+conda create svr-pk -f _env/requirements.yml
 conda activate svr-pk
 ```
 
-This repository contained following two repository, [retrosim](https://github.com/connorcoley/retrosim) (in <code>SVR-PK/retrosynthesis</code>) and [TS](https://github.com/PatWalters/TS) (in <code>SVR-PK/_benchmarking/Thompson</code>). Scripts that have been modified to meet our purposes have <code>_iwmspy</code> prefixed to the extension.
+To fully reproduce the procedure as shown in the [paper](URL_to_the_paper), two external repositories are necessary.
+1.  [retrosim](https://github.com/connorcoley/retrosim)  (found in `SVR-PK/retrosynthesis`)
+2.  [TS](https://github.com/PatWalters/TS) (found in `SVR-PK/_benchmarking/Thompson`). 
 
-Preprocessed datasets can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository. Please unzip after downloading and place the contents directory so that it has the following status.
+These two libraries have been modified from the original ones for meeting our purposes. The terms of licenses are provided in each folder with modification points specified.and the modified files are specified by the `_iwmspy` suffix.
+
+Preprocessed datasets can be obtained from this [ZENODO](https://doi.org/10.5281/zenodo.14729011) repository. Unzip the downloaded file and place it under the `outputs` folderhas the following status.
 ```
 SVR-PK
 |- outputs
@@ -24,7 +28,7 @@ SVR-PK
 ```
 
 ## 0. Configuration
-You can use your original datasets by creating config file and run below code with <code>-c [your config file].json</code> option. Please refer json files stored in <code>config</code> to create your own config file. 
+You can use your datasets by specifying the information in a config file and run XXX (what!!) with`-c [your config file].json` option. Sample json files are found in the `config` directory.
 
 |Parameter|Description|
 |----|----|
@@ -49,13 +53,13 @@ You can use your original datasets by creating config file and run below code wi
 
 ## 1. Generate models for screening reactants
 
-Run below code.
+Run the command.
 
 ```
 python build_model.py -c [your_config_file].json
 ```
 
-Our results can be replicated by this json file.
+Our results in the paper can be reproduced using the json file below.
 
 * <code>chembl_config_lv1.json</code>: Product-based splitting
 * <code>chembl_config_lv1_augment.json</code>: Product-based splitting with data augmentation
@@ -68,7 +72,7 @@ Our results can be replicated by this json file.
 python build_model.py -c [your_config_file].json
 ```
 
-If you have your own dataset, you can inplement modeling by following script.
+If you have your own dataset, you can run as follows.
 
 ```
 python rm_main.py -c [your_config_file].json
@@ -76,22 +80,22 @@ python rm_main.py -c [your_config_file].json
 
 ## 2. Screen reactants and combine by generated models
 
-Reactant screening procedure. 
+Reactant screening.
 
 ```
 python reactant_screening.py -c [your_config_file].json
 ```
 
-Our results can be replicated by this json file.
+Our results in the paper can be reproduced by setting the following json file.
 
 * <code>chembl_config_for_screening_1k.json</code>: Reactant pair screening (sample 1k reactants for each, just for rate measurement)
 * <code>chembl_config_for_screening_10k.json</code>: Reactant pair screening (sample 10k reactants for each, just for rate measurement)
 * <code>chembl_config_for_screening_100k.json</code>: Reactant pair screening (sample 100k reactant for each)
 
-If you want to obtain reactant pairs from your own reactant file, <code>heavy_atom_count</code> (number of heavy atoms of compound, easily calculated by RDKit) should be contained in your own reactant file.
+If you want to obtain reactant pairs from your own reactant file, the <code>heavy_atom_count</code> (number of heavy atoms of compound, easily calculated by RDKit) column should be contained in your own reactant file.
 
-## 3. Method for comparison
 
+## 3. Methods for comparison
 Thompson sampling was used as the comparison method (https://pubs.acs.org/doi/10.1021/acs.jcim.3c01790).
 
 The comparison method can be run by following command. 
@@ -102,7 +106,7 @@ python reactant_screening_TS.py -c [your_config_file].json
 You can use the same <code>json</code> file used in our method for configuration.
 
 ## Analyze results
-Results will be stored <code>outputs</code> directory.
+Results will be stored <code>outputs</code> directory, and the figures can be produced following the procedure in the `analysis.ipynb` notebook.
 
 ```
 SVR-PK
@@ -112,5 +116,3 @@ SVR-PK
     |- reactant_combination_level{n}[\_augmented]\_{m}[\_rc{l}] : proposed reactant pairs
     |- ...
 ```
-
-Results you obtained can be analyzed by using <code>analysis.ipynb</code>.
