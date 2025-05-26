@@ -62,6 +62,12 @@ Our results can be replicated by this json file.
 * <code>chembl_config_lv2.json</code>: Reactant-based splitting
 * <code>chembl_config_lv2_augment.json</code>: Reactant-based splitting with data augmentation
 
+[MolCLR](https://github.com/yuyangw/MolCLR) is used for comparison of accuracies. Note that you need to create new environment named <code>molclr</code>. For details, please refer <code>SVR-PK/models/MolCLR/README.md</code>.
+
+```
+python build_model.py -c [your_config_file].json
+```
+
 If you have your own dataset, you can inplement modeling by following script.
 
 ```
