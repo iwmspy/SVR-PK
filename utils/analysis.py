@@ -695,26 +695,38 @@ def analyze_best_model_appearance(confs, files, split_levels, com_dict, bas_dict
     """
     lab_dict = {1: 'Product-based', 2: 'Reactant-based'}
     res_dict = {}
+    res_prd_rxn_mlr_columns ={'Unnamed: 0': 'Rep_reaction', 'test_r2': 'r2', 'test_mae': 'mae', 'test_rmse': 'rmse'}
 
     for split_level in split_levels:
         confs['split_level'] = split_level
+        confs['augmentation'] = 1
+        confs_wo_aug = confs.copy()
+        confs_wo_aug['augmentation'] = 0
         rlist = []
 
         for file in files:
             file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
-            pred_dir, _, _ = dirnameextractor('./outputs/prediction', confs)
-            pred_dir = os.path.join(pred_dir, file_uni_name)
+            pred_dir_w_aug, _, _ = dirnameextractor('./outputs/prediction', confs)
+            pred_dir_wo_aug, _, _ = dirnameextractor('./outputs/prediction', confs_wo_aug)
+            pred_dir_w_aug = os.path.join(pred_dir_w_aug, file_uni_name)
+            pred_dir_wo_aug = os.path.join(pred_dir_wo_aug, file_uni_name)
 
             # Load prediction results
             res_rct_rxn_ts = pd.read_table(
-                f'{pred_dir}/prediction_score_rct_test.tsv',
+                f'{pred_dir_w_aug}/prediction_score_rct_test.tsv',
                 header=0, index_col=None
             ).sort_index().replace('-', None).dropna()
 
             res_prd_rxn_ts = pd.read_table(
-                f'{pred_dir}/prediction_score_prd_test.tsv',
+                f'{pred_dir_w_aug}/prediction_score_prd_test.tsv',
                 header=0, index_col=None
             ).sort_index().replace('-', None).dropna()
+
+            res_prd_rxn_mlr = pd.read_csv(
+                f'{pred_dir_wo_aug}/prd_molclr_scores.csv',
+                header=0, index_col=None
+            ).sort_index()
+            res_prd_rxn_mlr.rename(columns=res_prd_rxn_mlr_columns, inplace=True)
 
             # Map model names
             res_rct_rxn_ts['model'] = res_rct_rxn_ts['model'].map(com_dict)
@@ -722,8 +734,11 @@ def analyze_best_model_appearance(confs, files, split_levels, com_dict, bas_dict
             res_rct_rxn_ts = res_rct_rxn_ts[~res_rct_rxn_ts['model'].str.startswith('_')]
             res_prd_rxn_ts = res_prd_rxn_ts[~res_prd_rxn_ts['model'].str.startswith('_')]
 
+            res_prd_rxn_mlr['model'] = 'MolCLR'
+
             # Combine and find the most frequent best model
-            res_df_r = pd.concat([res_prd_rxn_ts, res_rct_rxn_ts]).astype({'r2': np.float64}).reset_index()
+            res_df_r = pd.concat([res_prd_rxn_ts, res_rct_rxn_ts, res_prd_rxn_mlr[list(res_prd_rxn_mlr_columns.values()) + ['model']]]).astype({'r2': np.float64}).reset_index()
+            # res_df_r = pd.concat([res_prd_rxn_ts, res_rct_rxn_ts]).astype({'r2': np.float64}).reset_index()
             res_idx = res_df_r.groupby('Rep_reaction')['r2'].idxmax()
             rlist.append(most_frequent_element(res_df_r.loc[res_idx]['model'].to_list())[0])
 

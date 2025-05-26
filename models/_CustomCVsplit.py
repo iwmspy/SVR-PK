@@ -26,7 +26,7 @@ def _mixturesortedlist(l):
     mixl = []
     i, j = 0, len(l) - 1
     while i <= j:
-        if i == j:  # リストの中央に達した場合は要素を1回だけ追加
+        if i == j:
             mixl.append(l[i])
         else:
             mixl.append(l[i])
