@@ -1,7 +1,10 @@
 from collections import Counter
+from copy import deepcopy
 import json
 import os
 from tempfile import TemporaryDirectory
+import warnings
+warnings.filterwarnings('ignore')
 
 from joblib import Parallel, delayed
 import matplotlib.pyplot as plt
@@ -298,6 +301,39 @@ def load_and_process_data(pred_dir, met):
 
     return res_rxn_tr, res_rxn_ts
 
+def is_augmented(confs, files, split_levels, rxns):
+    """Process data for each split level and augmentation."""
+    res_dict_tr_out = {}
+
+    for split_level, split_label in split_levels.items():
+        confs['split_level'] = split_level
+        confs['augmentation'] = True
+        pred_dir_base, _, _ = dirnameextractor('./outputs/prediction', confs)
+
+        res_dict_tr = {}
+        
+        for file in files:
+            file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+            pred_dir = os.path.join(pred_dir_base, file_uni_name)
+            res_rxn_tr = pd.read_table(f'{pred_dir}/prediction_results_rct_train.tsv', header=0, index_col=0)
+
+            # For each 'Rep_reaction', check if any entry has 'augmented' == True
+            augmented_flags = res_rxn_tr.groupby('Rep_reaction')['augmented'].any()
+
+            # Store processed data
+            res_dict_tr[file_uni_name] = pd.DataFrame(augmented_flags)
+
+        # Concatenate and process results
+        res_df_tr = dfconcatinatorwithlabel(res_dict_tr, 'CHEMBL ID')
+        res_df_tr['Identifier'] = [f'{id}_{rxn}' for id, rxn in zip(res_df_tr['CHEMBL ID'], res_df_tr.index)]
+        res_df_tr['Reaction set ID'] = [rxns.loc[id, 'Reation set ID'] for id in res_df_tr['Identifier']]
+        res_df_tr.sort_values(['Reaction set ID'], key=lambda s: [st.lower() if isinstance(st, str) else st for st in s], inplace=True)
+        res_df_tr.set_index('Reaction set ID', inplace=True, drop=True)
+
+        res_dict_tr_out[f'{split_label}_augmented'] = res_df_tr
+
+    return res_dict_tr_out
+
 def process_split_level(confs, files, split_levels, augment, met, rxns):
     """Process data for each split level and augmentation."""
     res_dict_tr_out = {}
@@ -381,6 +417,7 @@ def plot_results(res_dfs, split_levels, output_path):
     
     for i, a in enumerate(rax):
         for j, ax in enumerate(a):
+            labels_origin = deepcopy(ax.get_xticklabels())
             if i == 0:
                 ax.set_title(lab_dict[split_levels[j]], fontsize=fsize * 2)
             ax_lim = ax.get_ylim()
@@ -397,7 +434,96 @@ def plot_results(res_dfs, split_levels, output_path):
                 ax.set_ylabel("")
     
     for ax in rax[-1]:
-        ax.set_xticklabels(labels=ax.get_xticklabels(), fontsize=fsize, rotation=75)
+        ax.set_xticklabels(labels=labels_origin, fontsize=fsize, rotation=75)
+        ax.set_xlabel("CHEMBL ID", fontsize=fsize + 10)
+    
+    hdl, lbls = ax.get_legend_handles_labels()
+    for ax in rax.ravel():
+        ax.get_legend().remove()
+    
+    rfig.legend(handles=hdl, labels=lbls, fontsize=fsize, loc='lower center', ncols=len(lbls))
+    rfig.tight_layout()
+    rfig.subplots_adjust(left=0.08, bottom=0.15, right=0.99, top=0.95)
+    rfig.savefig(output_path)
+    plt.clf()
+    plt.close()
+
+def process_mlr_files_only(confs, files, prediction_levels, split_levels, rxns):
+    """Process prediction files and organize results."""
+    res_dict = {pslv: {} for pslv in prediction_levels}
+    for file in files:
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        for pslv, split_level in zip(prediction_levels, split_levels):
+            confs['split_level'] = split_level
+            pred_dir, _, _ = dirnameextractor('./outputs/prediction', confs)
+            pred_dir = os.path.join(pred_dir, file_uni_name)
+            res_prd_mlr = pd.read_csv(f'{pred_dir}/prd_molclr_scores.csv', header=0, index_col=None).sort_index()
+            res_prd_mlr.rename(columns={'Unnamed: 0': 'dataset'}, inplace=True)
+            rdict = {
+                'MolCLR': res_prd_mlr,
+            }
+            rdf = dfconcatinatorwithlabel(rdict, 'split_level')
+            res_dict[pslv][file_uni_name] = rdf.copy()
+    dfs = {key: dfconcatinatorwithlabel(rd, 'uni_name').dropna() for key, rd in res_dict.items()}
+    for key, df in dfs.items():
+        df['identifier'] = [f'{idx}_{rxn}' for idx, rxn in zip(df['uni_name'], df['dataset'])]
+        df['Reaction set ID'] = [rxns.loc[id, 'Reation set ID'] for id in df['identifier']]
+        df.sort_values(by=['Reaction set ID'], inplace=True)
+        dfs[key] = df
+    return dfs
+
+def process_mlr_files(confs, files, prediction_levels, split_levels):
+    """Process prediction files and organize results."""
+    res_dict = {pslv: {} for pslv in prediction_levels}
+    for file in files:
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        for pslv, split_level in zip(prediction_levels, split_levels):
+            confs['split_level'] = split_level
+            pred_dir, _, _ = dirnameextractor('./outputs/prediction', confs)
+            pred_dir = os.path.join(pred_dir, file_uni_name)
+            res_prd_mlr = pd.read_csv(f'{pred_dir}/prd_molclr_scores.csv', header=0, index_col=None).sort_index()
+            res_prd_mlr.rename(columns={'Unnamed: 0': 'dataset', 'test_r2': 'r2', 'test_mae': 'mae', 'test_rmse': 'rmse'}, inplace=True)
+            res_prd_svr = pd.read_table(f'{pred_dir}/prediction_score_prd_test.tsv', header=0, index_col=None).sort_index()
+            res_prd_svr.rename(columns={'Rep_reaction': 'dataset', 'r2': 'r2'}, inplace=True)
+            rdict = {
+                'MolCLR': res_prd_mlr[['dataset', 'r2', 'mae', 'rmse']],
+                'SVR': res_prd_svr[res_prd_svr['model'] == 'svr_tanimoto'][['dataset', 'r2', 'mae', 'rmse']]
+            }
+            rdf = dfconcatinatorwithlabel(rdict, 'split_level')
+            res_dict[pslv][file_uni_name] = rdf.copy()
+    return {key: dfconcatinatorwithlabel(rd, 'uni_name').dropna() for key, rd in res_dict.items()}
+
+def plot_mlr_results(res_dfs, split_levels, output_path):
+    """Generate and save boxplots for the results."""
+    fsize = 30
+    lab_dict = {1: 'Product-based', 2: 'Reactant-based'}
+    met = {'r2': '$R^2$', 'mae': 'MAE'}
+    
+    rfig, rax = plt.subplots(2, len(split_levels), figsize=(len(split_levels) * 12, 20))
+    for i, (key, df) in enumerate(res_dfs.items()):
+        boxplotter(x='uni_name', y='r2', data=df, hue='split_level', ax=rax[0, i])
+        boxplotter(x='uni_name', y='mae', data=df, hue='split_level', ax=rax[1, i])
+    
+    for i, a in enumerate(rax):
+        for j, ax in enumerate(a):
+            labels_origin = deepcopy(ax.get_xticklabels())
+            if i == 0:
+                ax.set_title(lab_dict[split_levels[j]], fontsize=fsize * 2)
+            ax_lim = ax.get_ylim()
+            if ax_lim[0] > ax_lim[1]:
+                ax.invert_yaxis()
+            ax.yaxis.set_major_formatter(PercentFormatter(xmax=100, decimals=1, symbol=''))
+            ax.set_xticklabels(labels=["" for _ in ax.get_xticklabels()])
+            ax.set_xlabel("")
+            if j == 0:
+                ax.set_yticklabels(labels=ax.get_yticklabels(), fontsize=fsize)
+                ax.set_ylabel(met[ax.get_ylabel()], fontsize=fsize + 20)
+            else:
+                ax.set_yticklabels(labels=ax.get_yticklabels(), fontsize=fsize)
+                ax.set_ylabel("")
+    
+    for ax in rax[-1]:
+        ax.set_xticklabels(labels=labels_origin, fontsize=fsize, rotation=75)
         ax.set_xlabel("CHEMBL ID", fontsize=fsize + 10)
     
     hdl, lbls = ax.get_legend_handles_labels()
@@ -452,6 +578,7 @@ def plot_augmentation_differences(res_dfs, split_levels, output_path):
     
     for i, a in enumerate(rax):
         for j, ax in enumerate(a):
+            labels_origin = deepcopy(ax.get_xticklabels())
             if i == 0:
                 ax.set_title(lab_dict[split_levels[j]], fontsize=fsize * 2)
             ax_lim = ax.get_ylim()
@@ -468,7 +595,7 @@ def plot_augmentation_differences(res_dfs, split_levels, output_path):
                 ax.set_ylabel("")
     
     for ax in rax[-1]:
-        ax.set_xticklabels(labels=ax.get_xticklabels(), fontsize=fsize, rotation=75)
+        ax.set_xticklabels(labels=labels_origin, fontsize=fsize, rotation=75)
         ax.set_xlabel("CHEMBL ID", fontsize=fsize + 10)
     
     hdl, lbls = ax.get_legend_handles_labels()
@@ -568,26 +695,38 @@ def analyze_best_model_appearance(confs, files, split_levels, com_dict, bas_dict
     """
     lab_dict = {1: 'Product-based', 2: 'Reactant-based'}
     res_dict = {}
+    res_prd_rxn_mlr_columns ={'Unnamed: 0': 'Rep_reaction', 'test_r2': 'r2', 'test_mae': 'mae', 'test_rmse': 'rmse'}
 
     for split_level in split_levels:
         confs['split_level'] = split_level
+        confs['augmentation'] = 1
+        confs_wo_aug = confs.copy()
+        confs_wo_aug['augmentation'] = 0
         rlist = []
 
         for file in files:
             file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
-            pred_dir, _, _ = dirnameextractor('./outputs/prediction', confs)
-            pred_dir = os.path.join(pred_dir, file_uni_name)
+            pred_dir_w_aug, _, _ = dirnameextractor('./outputs/prediction', confs)
+            pred_dir_wo_aug, _, _ = dirnameextractor('./outputs/prediction', confs_wo_aug)
+            pred_dir_w_aug = os.path.join(pred_dir_w_aug, file_uni_name)
+            pred_dir_wo_aug = os.path.join(pred_dir_wo_aug, file_uni_name)
 
             # Load prediction results
             res_rct_rxn_ts = pd.read_table(
-                f'{pred_dir}/prediction_score_rct_test.tsv',
+                f'{pred_dir_w_aug}/prediction_score_rct_test.tsv',
                 header=0, index_col=None
             ).sort_index().replace('-', None).dropna()
 
             res_prd_rxn_ts = pd.read_table(
-                f'{pred_dir}/prediction_score_prd_test.tsv',
+                f'{pred_dir_w_aug}/prediction_score_prd_test.tsv',
                 header=0, index_col=None
             ).sort_index().replace('-', None).dropna()
+
+            res_prd_rxn_mlr = pd.read_csv(
+                f'{pred_dir_wo_aug}/prd_molclr_scores.csv',
+                header=0, index_col=None
+            ).sort_index()
+            res_prd_rxn_mlr.rename(columns=res_prd_rxn_mlr_columns, inplace=True)
 
             # Map model names
             res_rct_rxn_ts['model'] = res_rct_rxn_ts['model'].map(com_dict)
@@ -595,8 +734,11 @@ def analyze_best_model_appearance(confs, files, split_levels, com_dict, bas_dict
             res_rct_rxn_ts = res_rct_rxn_ts[~res_rct_rxn_ts['model'].str.startswith('_')]
             res_prd_rxn_ts = res_prd_rxn_ts[~res_prd_rxn_ts['model'].str.startswith('_')]
 
+            res_prd_rxn_mlr['model'] = 'MolCLR'
+
             # Combine and find the most frequent best model
-            res_df_r = pd.concat([res_prd_rxn_ts, res_rct_rxn_ts]).astype({'r2': np.float64}).reset_index()
+            res_df_r = pd.concat([res_prd_rxn_ts, res_rct_rxn_ts, res_prd_rxn_mlr[list(res_prd_rxn_mlr_columns.values()) + ['model']]]).astype({'r2': np.float64}).reset_index()
+            # res_df_r = pd.concat([res_prd_rxn_ts, res_rct_rxn_ts]).astype({'r2': np.float64}).reset_index()
             res_idx = res_df_r.groupby('Rep_reaction')['r2'].idxmax()
             rlist.append(most_frequent_element(res_df_r.loc[res_idx]['model'].to_list())[0])
 
@@ -665,26 +807,94 @@ def analyze_augmentation_effect(confs, files, split_levels, prediction_levels, c
 
     return results
 
-def analyze_and_plot_augmentation_effect(config_file_path, output_path):
+def plot_actual_vs_predicted(config_file_path, output_dir='./outputs/prediction', fsize=24):
     """
-    Analyze the effect of augmentation and plot the results.
-
-    Args:
-        config_file_path (str): Path to the configuration file.
-        output_path (str): Path to save the output plot.
+    For each file and reaction, generate and save scatter plots of measured vs. predicted values.
+    The color indicates whether augmentation is used or not.
     """
-    # Load configuration
     confs = load_config(config_file_path)
+
     files = confs["files"]
-    split_levels = [1, 2]
-    prediction_levels = [f'prediction_level{spl}' for spl in split_levels]
+    obj_col = confs['objective_col']
+    pred_rct_col = 'svr_tanimoto_split_rct_pred'
+    pred_prd_col = 'svr_tanimoto_prd_pred'
+    idx_col = confs['index_col']
 
-    # Process augmentation differences
-    res_dfs = process_augmentation_differences(confs, files, split_levels, prediction_levels)
+    for file in files:
+        file_uni_name = os.path.split(file)[-1].rsplit('.', 1)[0]
+        axes_obj_dict = None
+        fig = None
 
-    # Plot results
-    plot_augmentation_differences(res_dfs, split_levels, output_path)
-    print(f"Augmentation effect analysis saved to {output_path}")
+        for i, aug in enumerate([False, True]):
+            confs['augmentation'] = aug
+            pred_dir_base, _, _ = dirnameextractor(output_dir, confs)
+            pred_dir = os.path.join(pred_dir_base, file_uni_name)
+
+            prd_ts = pd.read_table(f'{pred_dir}/prediction_results_prd_test.tsv', header=0, index_col=0)
+            rct_ts = pd.read_table(f'{pred_dir}/prediction_results_rct_test.tsv', header=0, index_col=0)
+
+            reactions = sorted(set(rct_ts['Rep_reaction']))
+            ver, hor = GridGenerator(reactions)
+
+            if i == 0:
+                # Create subplots for each reaction
+                fig, axes = plt.subplots(ver, hor, figsize=(hor * 11, ver * 10))
+                axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
+                axes_obj_dict = {rxn: ax for rxn, ax in zip(reactions, axes)}
+
+            for rxn, ax in axes_obj_dict.items():
+                ax.set_xlabel('Measured $pK_i$', fontsize=fsize)
+                ax.set_ylabel('Predicted $pK_i$', fontsize=fsize)
+                if i == 0:
+                    # Plot SVR-baseline and SVR-PK without augmentation for test data
+                    ax.scatter(
+                        prd_ts[prd_ts['Rep_reaction'] == rxn][obj_col],
+                        prd_ts[prd_ts['Rep_reaction'] == rxn][pred_prd_col],
+                        label='SVR-baseline', color='green'
+                    )
+                    ax.scatter(
+                        rct_ts[rct_ts['Rep_reaction'] == rxn][obj_col],
+                        rct_ts[rct_ts['Rep_reaction'] == rxn][pred_rct_col],
+                        label='SVR-PK without augmentation', color='orange'
+                    )
+                else:
+                    # Plot SVR-PK with augmentation for test data
+                    ax.scatter(
+                        rct_ts[rct_ts['Rep_reaction'] == rxn][obj_col],
+                        rct_ts[rct_ts['Rep_reaction'] == rxn][pred_rct_col],
+                        label='SVR-PK', color='blue'
+                    )
+                # Collect all relevant values for axis limits
+                vals = []
+                vals.extend(rct_ts[rct_ts['Rep_reaction'] == rxn][obj_col].values)
+                vals.extend(rct_ts[rct_ts['Rep_reaction'] == rxn][pred_rct_col].values)
+                vals.extend(prd_ts[prd_ts['Rep_reaction'] == rxn][pred_prd_col].values)
+                lim = (min(vals) - 0.5, max(vals) + 0.5)
+
+                ax.set_xlim(lim)
+                ax.set_ylim(lim)
+                
+                # Draw diagonal line
+                rlim_act = ax.get_xlim()
+                rlim_obj = ax.get_ylim()
+                rlim = [min(rlim_act[0], rlim_obj[0]), max(rlim_act[1], rlim_obj[1])]
+                ax.plot([rlim[0], rlim[1]], [rlim[0], rlim[1]], color='red')
+                ax.set_xticklabels(ax.get_xticklabels(), fontsize=fsize)
+                ax.set_yticklabels(ax.get_yticklabels(), fontsize=fsize)
+                ax.set_title(rxn, fontsize=fsize)
+                ax.set_aspect('equal')
+
+        # Add legends to each subplot
+        for rxn, ax in axes_obj_dict.items():
+            ax.legend(fontsize=18)
+
+        # Set the main title and save the figure
+        fig.suptitle(f'{file_uni_name}_actual_predict_plot', fontsize=fsize)
+        fig.tight_layout(rect=[0, 0, 1, 0.98])
+        fig.savefig(f'{pred_dir}/prediction_results_plot.png')
+        print(f"Scatter plot saved to {pred_dir}/prediction_results_plot.png")
+        plt.clf()
+        plt.close()
 
 def grid_generator(unique):
     """Generate grid dimensions for subplots."""

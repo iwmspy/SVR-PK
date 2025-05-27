@@ -9,7 +9,8 @@ parser.add_argument('-c', '--config', default=f'{pwd}/config/chembl_config_lv1_a
 args = parser.parse_args()
 
 if __name__=='__main__':
-	run('generate_dataset_retrosynthesis')
-	run('preprocess_for_retrosynthesis')
-	run('modeling_retrosynthesis_ecfp_split')
+	run('generate_reactant_pairs')
+	run('preprocess')
+	run('split_train_test')
+	run('build_model')
 	
