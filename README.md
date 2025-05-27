@@ -17,7 +17,7 @@ To fully reproduce the procedure as shown in the [paper](URL_to_the_paper), two 
 1.  [retrosim](https://github.com/connorcoley/retrosim)  (found in `SVR-PK/retrosynthesis`)
 2.  [TS](https://github.com/PatWalters/TS) (found in `SVR-PK/_benchmarking/Thompson`). 
 
-These two libraries have been modified from the original ones for meeting our purposes. The terms of licenses are provided in each folder with modification points specified and the modified files are specified by the `_iwmspy` suffix.
+These two libraries have been modified for our purposes. The terms of license are provided in each folder and the modified files are specified by the `_iwmspy` suffix.
 
 Datasets to reproduce the results in the paper can be downloaded from the ZENODO repository [ZENODO](https://doi.org/10.5281/zenodo.15522920). The `outputs.zip` file contains the necessary data.
 
