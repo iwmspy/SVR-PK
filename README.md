@@ -1,7 +1,7 @@
 # Implementation of SVR-PK and virtual screening protocol
 
 Support vector regression with a prodcut kernel (SVR-PK) can efficiently evaluate a molecule consisting of multiple reactant components. Each component has a kernel function (default: Tanimoto kernel) and the product of the kernel functions form the kernel function in SVR. 
-For more details, please refere to the [paper](URL_to_the_paper)
+For more details, please refere to the [paper](URL_to_the_paper).
 
 ## Environment setting
 [Conda](https://www.anaconda.com/docs/getting-started/miniconda/main) is recommended to handle packages in a virtual environment. Required packages are listed in `_env/requirements.yml`.
