@@ -131,7 +131,7 @@ python build_model.py -c config/chembl_config_lv1_augment.json
 
 Then, models with SVR-PK for each reaction dataset will be created. 
 The results will be saved `SVR-PK/outputs/prediction_level1_augmented` folder with target IDs as subfolders.
-In each subfolder, you can find these files: (Fix this:bug: :exclamation:)
+In each subfolder, you can find these files:
 - `mod.pickle`                                : Pickle encompassing the constructed model
 - `prediction_results_prd_test(train).tsv`    : Predicted value for each sample by SVR-baseline models (i.e. prediction from product)
 - `prediction_results_rct_test(train).tsv`    : Predicted value for each sample by SVR-PK, -SK and -concatECFP models (i.e. prediction from reactant pair)
@@ -159,7 +159,7 @@ To screen virtual reactants using sampled 1k reactants, use the following comman
 ```bash
 python reactant_screening.py -c config/chembl_config_for_screening_1k.json
 ```
-This screened results are stored in `SVR-PK/outputs/reactant_combination_level1_augmented_10000_rc1000` :bug: :exclamation:
+This screened results are stored in `SVR-PK/outputs/reactant_combination_level1_augmented_10000_rc1000`
 
 In each subfolder, you can find these files:
 - `{chembl_id}_{reaction_id}_rct(1,2)_candidates_selected_whole.tsv`: Reactant candidates (random sampled)
@@ -177,11 +177,11 @@ To screen reactants using the sampling, run the following command.
 python reactant_screening_TS.py -c [your_config_file].json
 ```
 You can use the same `json` file used in our method for configuration.
-For example, :bug: :exclamation:
+For example,
 ```bash
 python reactant_screening_TS.py -c config/chembl_config_for_screening_1k.json 
 ```
-The screened results are also stored in `SVR-PK/outputs/reactant_combination_level1_augmented_10000_rc1000` :bug: :exclamation:
+The screened results are also stored in `SVR-PK/outputs/reactant_combination_level1_augmented_10000_rc1000`
 
 In each subfolder, you can find these files:
 - `ts_results.csv`: `n_samples` of Thompson sampling results
@@ -203,4 +203,4 @@ SVR-PK
 ```
 
 ## An example notebook
-The above analysis is summarized in the `reproduce_paper_analysis.ipynb` notebook for easy reference. :bug: :exclamation:
+The above analysis is summarized in the `reproduce_paper_analysis.ipynb` notebook for easy reference.
