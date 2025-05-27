@@ -123,18 +123,20 @@ Our results in the paper can be reproduced using the json file below.
 * `chembl_config_lv2.json`: Reactant-based splitting
 * `chembl_config_lv2_augment.json`: Reactant-based splitting with data augmentation
 
-To make models with SVR-PK with data augmentation for the rectant-based splitting datasets, run the command below.
+To make models with SVR-PK with data augmentation for the product-based splitting datasets, run the command below.
 
 ```bash
-python build_model.py -c config/chembl_config_lv2_augment.json
+python build_model.py -c config/chembl_config_lv1_augment.json
 ```
 
 Then, models with SVR-PK for each reaction dataset will be created. 
-The results will be saved `SVR-PK/outputs/prediction_level2_augmented` folder with target IDs as subfolders.
+The results will be saved `SVR-PK/outputs/prediction_level1_augmented` folder with target IDs as subfolders.
 In each subfolder, you can find these files: (Fix this:bug: :exclamation:)
-- mod.pickle
-- prediction_results_prd_test(train).tsv
-- prediction_results_rct..
+- `mod.pickle`                                : Pickle encompassing the constructed model
+- `prediction_results_prd_test(train).tsv`    : Predicted value for each sample by SVR-baseline models (i.e. prediction from product)
+- `prediction_results_rct_test(train).tsv`    : Predicted value for each sample by SVR-PK, -SK and -concatECFP models (i.e. prediction from reactant pair)
+- `prediction_score_prd_test(train).tsv`      : Prediction accuracy of SVR-baseline models
+- `prediction_score_rct_test(train).tsv`      : Prediction accuracy of SVR-PK, -SK and -concatECFP models
 
 :exclamation:[MolCLR](https://github.com/yuyangw/MolCLR) is used for comparison of accuracies. Note that you need to create new environment named `molclr`. For details, please read `SVR-PK/models/MolCLR/README.md`.
 
@@ -157,21 +159,34 @@ To screen virtual reactants using sampled 1k reactants, use the following comman
 ```bash
 python reactant_screening.py -c config/chembl_config_for_screening_1k.json
 ```
-The screened results are stored in XXX :bug: :exclamation:
+This screened results are stored in `SVR-PK/outputs/reactant_combination_level1_augmented_10000_rc1000` :bug: :exclamation:
+
+In each subfolder, you can find these files:
+- `{chembl_id}_{reaction_id}_rct(1,2)_candidates_selected_whole.tsv`: Reactant candidates (random sampled)
+- `{chembl_id}_{reaction_id}_rct(1,2)_candidates_selected_kernel_whole.tsv`: Kernel matrix of reactant candidates (random sampled)
+- `ok_combinations.tsv`: Index of reactant pairs that prediction is exceeded the threshold determined by `ext_ratio`
+- `{chembl_id}_{reaction_id}_rct_candidates_pairs_whole_sparse_split_highscored.tsv`: Upper n_samples * 100 of predicted reactant pairs (predicted by SVR-PK)
+- `{chembl_id}_{reaction_id}_rct_candidates_pairs_whole_sparse_split_retrieved.tsv`: Upper n_samples of predicted reactant pairs (predicted by SVR-baseline), also the invalid molecules were removed (see the Synthesizability of virtual molecules section of paper)
+- `{chembl_id}_{reaction_id}_rct_candidates_pairs_whole_sparse_split_retrieved_route.tsv`: Samples for which the reactant pairs match the output of the retrosynthesis
 
 ## 3. Methods for comparison
 In the paper, a Thompson sampling-based screening method was used as a comparison method (https://pubs.acs.org/doi/10.1021/acs.jcim.3c01790).
 
-To screen reactants using the sampling, run the following commnad.
+To screen reactants using the sampling, run the following command.
 ```
 python reactant_screening_TS.py -c [your_config_file].json
 ```
 You can use the same `json` file used in our method for configuration.
 For example, :bug: :exclamation:
 ```bash
-python reactant_screening_TS.py -c XXX.json 
+python reactant_screening_TS.py -c config/chembl_config_for_screening_1k.json 
 ```
-The screened results are stored in XXX :bug: :exclamation:
+The screened results are also stored in `SVR-PK/outputs/reactant_combination_level1_augmented_10000_rc1000` :bug: :exclamation:
+
+In each subfolder, you can find these files:
+- `ts_results.csv`: `n_samples` of Thompson sampling results
+- `ts_results_valid.tsv`: Invalid molecules were removed from `ts_results.csv` (see the Synthesizability of virtual molecules section of paper)
+- `ts_results_valid_route.tsv`: Samples for which the reactant pairs match the output of the retrosynthesis
 
 
 ## Analyze results
